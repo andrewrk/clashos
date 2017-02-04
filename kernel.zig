@@ -9,19 +9,24 @@ const ALIGN   = usize(0b0);     // align loaded modules on page boundaries
 const MEMINFO = usize(0b1);     // provide memory map
 const FLAGS   = ALIGN | MEMINFO;
 
-export const multiboot_header = MultibootHeader {
-    .magic = MAGIC,
-    .flags = FLAGS,
-    .checksum = ~(MAGIC +% FLAGS) +% 1,
-};
-
-var stack: [16 * 1024]u8 = undefined;
-var stack_top: usize = undefined;
-
-export nakedcc fn _start() -> unreachable {
+export const multiboot_header = {
     @setGlobalSection(multiboot_header, ".multiboot");
     @setGlobalAlign(multiboot_header, 4);
 
+    MultibootHeader {
+        .magic = MAGIC,
+        .flags = FLAGS,
+        .checksum = ~(MAGIC +% FLAGS) +% 1,
+    }
+};
+
+var stack: [16 * 1024]u8 = {
+    @setGlobalAlign(stack, 16);
+    undefined
+};
+var stack_top: usize = undefined;
+
+export nakedcc fn _start() -> unreachable {
     stack_top = usize(&stack) + stack.len;
 
     // set up the stack by pointing the esp register at the top
@@ -31,7 +36,6 @@ export nakedcc fn _start() -> unreachable {
         : [stack_top] "{esp}" (stack_top)
         );
 
-    @setGlobalAlign(stack, 16);
     kernel_main();
 
     // hang
