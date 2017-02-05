@@ -10,8 +10,7 @@ extern var __bss_end: u8;
 // r15 -> should begin execution at 0x8000.
 export nakedcc fn _start(r0: usize, r1: usize, atags: usize) -> unreachable {
     // to keep this in the first portion of the binary
-    // TODO
-    //@setGlobalSection(_start, ".text.boot");
+    @setGlobalSection(_start, ".text.boot");
 
     // set up the stack
     asm volatile ("mov sp, #0x8000");
