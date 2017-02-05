@@ -8,7 +8,7 @@ extern var __bss_end: u8;
 // r1 -> 0x00000C42
 // r2 -> 0x00000100 - start of ATAGS
 // r15 -> should begin execution at 0x8000.
-export nakedcc fn _start(r0: usize, r1: usize, atags: usize) -> unreachable {
+export nakedcc fn _start() -> unreachable {
     // to keep this in the first portion of the binary
     @setGlobalSection(_start, ".text.boot");
 
@@ -16,9 +16,9 @@ export nakedcc fn _start(r0: usize, r1: usize, atags: usize) -> unreachable {
     asm volatile ("mov sp, #0x8000");
 
     // clear .bss
-    @memset(&__bss_start, 0, usize(&__bss_end) - usize(&__bss_start));
+    @memset(&volatile __bss_start, 0, usize(&__bss_end) - usize(&__bss_start));
 
-    kernel_main(r0, r1, atags);
+    kernel_main();
     halt();
 }
 
@@ -132,11 +132,16 @@ fn uart_write(buffer: []u8) {
     for (buffer) |c| uart_putc(c);
 }
 
-fn kernel_main(r0: u32, r1: u32, atags: u32) {
+fn kernel_main() {
     uart_init();
-    uart_write("Hello, kernel World!\r\n");
+    uart_write("Hello, kernel World!\n");
 
     while (true) {
-        uart_putc(uart_getc());
+        const c = uart_getc();
+        if (c == '\r') {
+            uart_putc('\n');
+        } else {
+            uart_putc(c);
+        }
     }
 }
