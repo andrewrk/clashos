@@ -1,3 +1,7 @@
+const std = @import("std");
+const io = std.io;
+const assert = std.debug.assert;
+
 // The linker will make the address of these global variables equal
 // to the value we are interested in. The memory at the address
 // could alias any uninitialized global variable in the kernel.
@@ -12,25 +16,38 @@ export nakedcc fn _start() -> unreachable {
     // to keep this in the first portion of the binary
     @setGlobalSection(_start, ".text.boot");
 
-    // set up the stack
-    asm volatile ("mov sp, #0x8000");
+    // set up the stack and
+    // enable vector operations
+    asm volatile (
+        \\ mov sp, #0x8000
+        \\ mov r0, #0x00f00000
+        \\ mcr p15, 0, r0, c1, c0, 2
+        \\ isb
+        \\ mov r0, #0x40000000
+        \\ vmsr FPEXC, r0
+    : : : "r0");
 
     // clear .bss
     @memset(&volatile __bss_start, 0, usize(&__bss_end) - usize(&__bss_start));
 
     kernel_main();
-    halt();
 }
 
-fn halt() -> unreachable {
-    while (true) { }
+pub fn panic(message: []const u8) -> unreachable {
+    uart_write(message);
+    uart_write("\n!KERNEL PANIC!\n");
+    while (true) {
+        asm volatile ("wfe");
+    }
 }
 
 fn mmio_write(reg: usize, data: u32) {
+    @fence(AtomicOrder.SeqCst);
     *(&volatile u32)(reg) = data;
 }
 
 fn mmio_read(reg: usize) -> u32 {
+    @fence(AtomicOrder.SeqCst);
     return *(&volatile usize)(reg);
 }
 
@@ -125,23 +142,219 @@ fn uart_putc(byte: u8) {
 fn uart_getc() -> u8 {
     // Wait for UART to have recieved something.
     while ( (mmio_read(UART0_FR) & (1 << 4)) != 0 ) { }
-    return @truncate(u8, mmio_read(UART0_DR));
+    const c = @truncate(u8, mmio_read(UART0_DR));
+    return if (c == '\r') '\n' else c;
 }
 
-fn uart_write(buffer: []u8) {
+fn uart_write(buffer: []const u8) {
     for (buffer) |c| uart_putc(c);
 }
 
-fn kernel_main() {
-    uart_init();
-    uart_write("Hello, kernel World!\n");
-
-    while (true) {
-        const c = uart_getc();
-        if (c == '\r') {
-            uart_putc('\n');
-        } else {
-            uart_putc(c);
+// TODO use the std io formating code instead of duplicating
+fn log(comptime format: []const u8, args: ...) {
+    const State = enum {
+        Start,
+        OpenBrace,
+        CloseBrace,
+    };
+    comptime var start_index: usize = 0;
+    comptime var state = State.Start;
+    comptime var next_arg: usize = 0;
+    inline for (format) |c, i| {
+        switch (state) {
+            State.Start => switch (c) {
+                '{' => {
+                    if (start_index < i) uart_write(format[start_index...i]);
+                    state = State.OpenBrace;
+                },
+                '}' => {
+                    if (start_index < i) uart_write(format[start_index...i]);
+                    state = State.CloseBrace;
+                },
+                else => {},
+            },
+            State.OpenBrace => switch (c) {
+                '{' => {
+                    state = State.Start;
+                    start_index = i;
+                },
+                '}' => {
+                    logValue(args[next_arg]);
+                    next_arg += 1;
+                    state = State.Start;
+                    start_index = i + 1;
+                },
+                else => @compileError("Unknown format character: " ++ c),
+            },
+            State.CloseBrace => switch (c) {
+                '}' => {
+                    state = State.Start;
+                    start_index = i;
+                },
+                else => @compileError("Single '}' encountered in format string"),
+            },
         }
     }
+    comptime {
+        if (args.len != next_arg) {
+            @compileError("Unused arguments");
+        }
+        if (state != State.Start) {
+            @compileError("Incomplete format string: " ++ format);
+        }
+    }
+    if (start_index < format.len) {
+        uart_write(format[start_index...format.len]);
+    }
+}
+
+fn logValue(value: var) {
+    const T = @typeOf(value);
+    if (@isInteger(T)) {
+        return logInt(value);
+    } else if (@canImplicitCast([]const u8, value)) {
+        const casted_value = ([]const u8)(value);
+        return uart_write(casted_value);
+    } else if (T == void) {
+        return uart_write("void");
+    } else {
+        @compileError("Unable to print type '" ++ @typeName(T) ++ "'");
+    }
+}
+
+fn logInt(value: var) {
+    var buf: [20]u8 = undefined;
+    const amt_printed = io.bufPrintInt(@typeOf(value), buf, value);
+    uart_write(buf[0...amt_printed]);
+}
+
+fn kernel_main() -> unreachable {
+    uart_init();
+    log("ClashOS 0.0\n");
+
+    while (true) {
+        try(fb_init()) {
+            break;
+        } else {
+            panic("Unable to initialize framebuffer");
+        }
+    }
+
+    log("Screen size: {}x{}\n", fb_info.width, fb_info.height);
+
+    while (true) {
+        uart_putc(uart_getc());
+    }
+}
+
+var fb_info: FbInfo = undefined;
+
+const FbInfo = struct {
+    // Stuff about the pixel frame buffer
+    width: usize,
+    height: usize,
+    pitch: usize, //BCM2836 has this separate, so we use this instead of witdh
+    ptr: &volatile u8,
+};
+
+const Bcm2836FrameBuffer = packed struct {
+    width: usize, // Width of the frame buffer (pixels)
+    height: usize, // Height of the frame buffer
+    vwidth: usize, // Simplest thing to do is to set vwidth = width
+    vheight: usize, // Simplest thing to do is to set vheight = height
+    pitch: usize, // GPU fills this in, set to zero
+    depth: usize, // Bits per pixel, set to 24
+    x: usize, // Offset in x direction. Simplest thing to do is set to zero
+    y: usize, // Offset in y direction. Simplest thing to do is set to zero
+    pointer: usize, // GPU fills this in to be a pointer to the frame buffer
+    size: usize, // GPU fills this in
+};
+
+error NonZeroFrameBufferResponse;
+error NullFrameBufferPointer;
+
+fn fb_init() -> %void {
+    uart_write("Initializing frame buffer...\n");
+
+    // We need to put the frame buffer structure somewhere with the lower 4 bits zero.
+    // 0x400000 is a convenient place not used by anything, and with sufficient alignment
+    const fb = (&volatile Bcm2836FrameBuffer)(0x400000);
+
+    const width = 800;
+    const height = 600;
+
+    @fence(AtomicOrder.SeqCst);
+    fb.width = width;
+    fb.height = height;
+    fb.vwidth = width;
+    fb.vheight = height;
+    fb.pitch = 0;
+    fb.depth = 24;
+    fb.x = 0;
+    fb.y = 0;
+    fb.pointer = 0;
+    fb.size = 0;
+
+    // Tell the GPU the address of the structure
+    mbox_write(ArmToVc(usize(fb)));
+
+    // Wait for the GPU to respond, and get its response
+    const response = mbox_read();
+    if (response != 0) return error.NonZeroFrameBufferResponse;
+    if (fb.pointer == 0) return error.NullFrameBufferPointer;
+
+    fb_info.ptr = (&u8)(fb.pointer);
+    fb_info.width = fb.width;
+    fb_info.height = fb.height;
+    fb_info.pitch = fb.pitch;
+}
+
+const PERIPHERAL_BASE = 0x3F000000; // Base address for all peripherals
+
+// This is the base address for the mailbox registers
+// Actually, there's more than one mailbox, but this is the one we care about.
+const MAIL_BASE = PERIPHERAL_BASE + 0xB880;
+
+// Registers from mailbox 0 that we use
+const MAIL_READ = MAIL_BASE + 0x00; // We read from this register
+const MAIL_WRITE = MAIL_BASE + 0x20; // This is where we write to; it is actually the read/write of the other mailbox
+const MAIL_STATUS = MAIL_BASE + 0x18; // Status register for this mailbox
+const MAIL_CONFIG = MAIL_BASE + 0x1C; // we don't actually use this, but it exists
+
+// This bit is set in the status register if there is no space to write into the mailbox
+const MAIL_FULL = 0x80000000;
+// This bit is set if there is nothing to read from the mailbox
+const MAIL_EMPTY = 0x40000000;
+
+const MAIL_FB = 1; // The frame buffer uses channel 1
+
+fn mbox_write(v: u32) {
+    // wait for space
+    while (mmio_read(MAIL_STATUS) & MAIL_FULL != 0) {}
+    // Write the value to the frame buffer channel
+    mmio_write(MAIL_WRITE, MAIL_FB | (v & 0xFFFFFFF0));
+}
+
+fn mbox_read() -> u32 {
+    while (true) {
+        // wait for data
+        while (mmio_read(MAIL_STATUS) & MAIL_EMPTY != 0) {}
+        const result = mmio_read(MAIL_READ);
+
+        // Loop until we received something from the
+        // frame buffer channel
+        if ((result & 0xf) == MAIL_FB)
+            return result & 0xFFFFFFF0;
+    }
+}
+
+fn ArmToVc(addr: u32) -> u32 {
+    // Some things (e.g: the GPU) expect bus addresses, not ARM physical
+    // addresses
+    addr + 0xC0000000
+}
+
+fn VcToArm(addr: u32) -> u32 {
+    // Go the other way to ArmToVc
+    addr - 0xC0000000
 }
