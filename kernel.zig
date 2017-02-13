@@ -150,16 +150,38 @@ fn uart_write(buffer: []const u8) {
     for (buffer) |c| uart_putc(c);
 }
 
+fn debugDumpMemory(address: usize, size: usize) {
+    var i: usize = 0;
+    while (i < size; i += 1) {
+        const full_addr = address + i;
+
+        if (i % 16 == 0) {
+            log("\n0x{x8}  ", full_addr);
+        } else if (i % 8 == 0) {
+            log(" ");
+        }
+
+        log(" {x2}", *(&const u8)(full_addr));
+    }
+    log("\n");
+}
+
 // TODO use the std io formating code instead of duplicating
 fn log(comptime format: []const u8, args: ...) {
     const State = enum {
         Start,
         OpenBrace,
         CloseBrace,
+        Integer,
+        IntegerWidth,
     };
     comptime var start_index: usize = 0;
     comptime var state = State.Start;
     comptime var next_arg: usize = 0;
+    comptime var radix = 0;
+    comptime var uppercase = false;
+    comptime var width: usize = 0;
+    comptime var width_start: usize = 0;
     inline for (format) |c, i| {
         switch (state) {
             State.Start => switch (c) {
@@ -184,6 +206,24 @@ fn log(comptime format: []const u8, args: ...) {
                     state = State.Start;
                     start_index = i + 1;
                 },
+                'd' => {
+                    radix = 10;
+                    uppercase = false;
+                    width = 0;
+                    state = State.Integer;
+                },
+                'x' => {
+                    radix = 16;
+                    uppercase = false;
+                    width = 0;
+                    state = State.Integer;
+                },
+                'X' => {
+                    radix = 16;
+                    uppercase = true;
+                    width = 0;
+                    state = State.Integer;
+                },
                 else => @compileError("Unknown format character: " ++ c),
             },
             State.CloseBrace => switch (c) {
@@ -193,14 +233,39 @@ fn log(comptime format: []const u8, args: ...) {
                 },
                 else => @compileError("Single '}' encountered in format string"),
             },
+            State.Integer => switch (c) {
+                '}' => {
+                    logInt(args[next_arg], radix, uppercase, width);
+                    next_arg += 1;
+                    state = State.Start;
+                    start_index = i + 1;
+                },
+                '0' ... '9' => {
+                    width_start = i;
+                    state = State.IntegerWidth;
+                },
+                else => @compileError("Unexpected character in format string: " ++ c),
+            },
+            State.IntegerWidth => switch (c) {
+                '}' => {
+                    width = comptime %%io.parseUnsigned(usize, format[width_start...i], 10);
+                    logInt(args[next_arg], radix, uppercase, width);
+                    next_arg += 1;
+                    state = State.Start;
+                    start_index = i + 1;
+                },
+                '0' ... '9' => {},
+                else => @compileError("Expected '}' after 'x'/'X' in format string"),
+            },
         }
     }
     comptime {
         if (args.len != next_arg) {
             @compileError("Unused arguments");
         }
-        if (state != State.Start) {
-            @compileError("Incomplete format string: " ++ format);
+        switch (state) {
+            State.Start => {},
+            else => @compileError("Incomplete format string: " ++ format),
         }
     }
     if (start_index < format.len) {
@@ -211,7 +276,7 @@ fn log(comptime format: []const u8, args: ...) {
 fn logValue(value: var) {
     const T = @typeOf(value);
     if (@isInteger(T)) {
-        return logInt(value);
+        return logInt(value, 10, false, 0);
     } else if (@canImplicitCast([]const u8, value)) {
         const casted_value = ([]const u8)(value);
         return uart_write(casted_value);
@@ -222,9 +287,18 @@ fn logValue(value: var) {
     }
 }
 
-fn logInt(value: var) {
-    var buf: [20]u8 = undefined;
-    const amt_printed = io.bufPrintInt(@typeOf(value), buf, value);
+fn bigTimeExtraMemoryBarrier() {
+    asm volatile (
+        \\ mcr    p15, 0, ip, c7, c5, 0        @ invalidate I cache
+        \\ mcr    p15, 0, ip, c7, c5, 6        @ invalidate BTB
+        \\ dsb
+        \\ isb
+    );
+}
+
+fn logInt(value: var, base: u8, uppercase: bool, width: usize) {
+    var buf: [65]u8 = undefined;
+    const amt_printed = io.bufPrintInt(buf[0...], value, base, uppercase, width);
     uart_write(buf[0...amt_printed]);
 }
 
@@ -242,10 +316,14 @@ fn kernel_main() -> unreachable {
 
     log("Screen size: {}x{}\n", fb_info.width, fb_info.height);
 
+    fb_clear(&color_blue);
+
     while (true) {
         uart_putc(uart_getc());
     }
 }
+
+const color_blue = Color { .red = 0, .green = 0, .blue = 255 };
 
 var fb_info: FbInfo = undefined;
 
@@ -255,6 +333,7 @@ const FbInfo = struct {
     height: usize,
     pitch: usize, //BCM2836 has this separate, so we use this instead of witdh
     ptr: &volatile u8,
+    size: usize,
 };
 
 const Bcm2836FrameBuffer = packed struct {
@@ -274,14 +353,14 @@ error NonZeroFrameBufferResponse;
 error NullFrameBufferPointer;
 
 fn fb_init() -> %void {
-    uart_write("Initializing frame buffer...\n");
+    log("Initializing frame buffer...\n");
 
     // We need to put the frame buffer structure somewhere with the lower 4 bits zero.
     // 0x400000 is a convenient place not used by anything, and with sufficient alignment
     const fb = (&volatile Bcm2836FrameBuffer)(0x400000);
 
-    const width = 800;
-    const height = 600;
+    const width = 640;
+    const height = 480;
 
     @fence(AtomicOrder.SeqCst);
     fb.width = width;
@@ -303,11 +382,30 @@ fn fb_init() -> %void {
     if (response != 0) return error.NonZeroFrameBufferResponse;
     if (fb.pointer == 0) return error.NullFrameBufferPointer;
 
-    fb_info.ptr = (&u8)(fb.pointer);
+    fb_info.ptr = (&u8)(VcToArm(fb.pointer));
+    fb_info.size = fb.size;
     fb_info.width = fb.width;
     fb_info.height = fb.height;
     fb_info.pitch = fb.pitch;
 }
+
+fn fb_clear(color: &const Color) {
+    {var y: usize = 0; while (y < fb_info.height; y += 1) {
+        {var x: usize = 0; while (x < fb_info.width; x += 1) {
+            const offset = y * fb_info.pitch + x * 3;
+            fb_info.ptr[offset] = color.red;
+            fb_info.ptr[offset + 1] = color.green;
+            fb_info.ptr[offset + 2] = color.blue;
+        }}
+    }}
+    @fence(AtomicOrder.SeqCst);
+}
+
+const Color = struct {
+    red: u8,
+    green: u8,
+    blue: u8,
+};
 
 const PERIPHERAL_BASE = 0x3F000000; // Base address for all peripherals
 
@@ -348,13 +446,13 @@ fn mbox_read() -> u32 {
     }
 }
 
-fn ArmToVc(addr: u32) -> u32 {
+fn ArmToVc(addr: usize) -> usize {
     // Some things (e.g: the GPU) expect bus addresses, not ARM physical
     // addresses
     addr + 0xC0000000
 }
 
-fn VcToArm(addr: u32) -> u32 {
+fn VcToArm(addr: usize) -> usize {
     // Go the other way to ArmToVc
     addr - 0xC0000000
 }
