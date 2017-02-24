@@ -1,27 +1,9 @@
-// TODO figure out why this isn't working: use @import("int_types.zig");
-pub const u1 = @intType(false, 1);
-pub const u2 = @intType(false, 2);
-pub const u3 = @intType(false, 3);
-pub const u4 = @intType(false, 4);
-pub const u5 = @intType(false, 5);
-pub const u6 = @intType(false, 6);
-pub const u7 = @intType(false, 7);
-
-pub const u9 = @intType(false, 9);
-pub const u10 = @intType(false, 10);
-pub const u11 = @intType(false, 11);
-pub const u12 = @intType(false, 12);
-pub const u13 = @intType(false, 13);
-pub const u14 = @intType(false, 14);
-pub const u15 = @intType(false, 15);
-pub const u18 = @intType(false, 18);
-pub const u19 = @intType(false, 19);
-pub const u24 = @intType(false, 24);
-
+use @import("int_types.zig");
 
 const panic = @import("main.zig").panic;
 const assert = @import("std").debug.assert;
 const log = @import("serial.zig").log;
+const dumpMemory = @import("serial.zig").dumpMemory;
 
 const maximum_devices = 8;
 var devices = []?UsbDevice{null} ** maximum_devices;
@@ -806,8 +788,16 @@ const UsbDeviceRequest = packed struct {
     Length: u16, // +0x6
 };
 
-var core_physical: &volatile CoreGlobalRegs = undefined;
-var core: &volatile CoreGlobalRegs = undefined;
+const HCD_DESIGNWARE_BASE: usize = 0x3f980000;
+
+const core_physical = (&volatile CoreGlobalRegs)(HCD_DESIGNWARE_BASE);
+var core: CoreGlobalRegs = undefined;
+
+const host_physical = (&volatile HostGlobalRegs)(HCD_DESIGNWARE_BASE + 0x400);
+var host: HostGlobalRegs = undefined;
+
+const power_physical = (&volatile PowerReg)(HCD_DESIGNWARE_BASE + 0xe00);
+var power: PowerReg = undefined;
 
 fn hcdInitialize() -> %void {
     comptime {
@@ -816,51 +806,28 @@ fn hcdInitialize() -> %void {
         assert(@sizeOf(PowerReg) == 0x4);
     }
 
+    dumpMemory(usize(core_physical), @sizeOf(CoreGlobalRegs));
+
+    core.VendorId = core_physical.VendorId;
+    core.UserId = core_physical.UserId;
+
+    if ((core.VendorId & 0xfffff000) != 0x4f542000) { // 'OT'2 
+        log("HCD: Hardware: {c}{c}{x}.{x}{x}{x} (BCM{x5}). Driver incompatible. Expected OT2.xxx (BCM2708x).\n",
+            u8((core.VendorId >> 24) & 0xff), u8((core.VendorId >> 16) & 0xff),
+            u8((core.VendorId >> 12) & 0xf), u8((core.VendorId >> 8) & 0xf),
+            u8((core.VendorId >> 4) & 0xf), u8((core.VendorId >> 0) & 0xf), 
+            (core.UserId >> 12) & 0xFFFFF);
+        return error.Incompatible;
+    } else {
+        log("HCD: Hardware: {c}{c}{x}.{x}{x}{x} (BCM{x5}).\n",
+            u8((core.VendorId >> 24) & 0xff), u8((core.VendorId >> 16) & 0xff),
+            u8((core.VendorId >> 12) & 0xf), u8((core.VendorId >> 8) & 0xf),
+            u8((core.VendorId >> 4) & 0xf), u8((core.VendorId >> 0) & 0xf), 
+            (core.UserId >> 12) & 0xFFFFF);
+    }
+
     panic("TODO hcdInitialize");
-//    LOG_DEBUG("HCD: Reserving memory.\n");
-//    CorePhysical = MemoryReserve(sizeof(struct CoreGlobalRegs), HCD_DESIGNWARE_BASE);
-//    Core = MemoryAllocate(sizeof(struct CoreGlobalRegs));
-//
-//    HostPhysical = MemoryReserve(sizeof(struct HostGlobalRegs), (void*)((u8*)HCD_DESIGNWARE_BASE + 0x400));
-//    Host = MemoryAllocate(sizeof(struct HostGlobalRegs));
-//    
-//    PowerPhysical = MemoryReserve(sizeof(struct PowerReg), (void*)((u8*)HCD_DESIGNWARE_BASE + 0xe00));
-//    Power = MemoryAllocate(sizeof(struct PowerReg));
-//
-//#ifdef BROADCOM_2835
-//    ReadBackReg(&Core->VendorId);
-//    ReadBackReg(&Core->UserId);
-//    if ((Core->VendorId & 0xfffff000) != 0x4f542000) { // 'OT'2 
-//        LOGF("HCD: Hardware: %c%c%x.%x%x%x (BCM%.5x). Driver incompatible. Expected OT2.xxx (BCM2708x).\n",
-//            (Core->VendorId >> 24) & 0xff, (Core->VendorId >> 16) & 0xff,
-//            (Core->VendorId >> 12) & 0xf, (Core->VendorId >> 8) & 0xf,
-//            (Core->VendorId >> 4) & 0xf, (Core->VendorId >> 0) & 0xf, 
-//            (Core->UserId >> 12) & 0xFFFFF);
-//        result = ErrorIncompatible;
-//        goto deallocate;
-//    }
-//    else {
-//        LOGF("HCD: Hardware: %c%c%x.%x%x%x (BCM%.5x).\n",
-//            (Core->VendorId >> 24) & 0xff, (Core->VendorId >> 16) & 0xff,
-//            (Core->VendorId >> 12) & 0xf, (Core->VendorId >> 8) & 0xf,
-//            (Core->VendorId >> 4) & 0xf, (Core->VendorId >> 0) & 0xf, 
-//            (Core->UserId >> 12) & 0xFFFFF);
-//    }
-//#else
-//    if ((Core->VendorId & 0xfffff000) != 0x4f542000) { // 'OT'2 
-//        LOGF("HCD: Hardware: %c%c%x.%x%x%x. Driver incompatible. Expected OT2.xxx.\n",
-//            (Core->VendorId >> 24) & 0xff, (Core->VendorId >> 16) & 0xff,
-//            (Core->VendorId >> 12) & 0xf, (Core->VendorId >> 8) & 0xf,
-//            (Core->VendorId >> 4) & 0xf, (Core->VendorId >> 0) & 0xf);
-//        return ErrorIncompatible;
-//    }
-//    else {
-//        LOGF("HCD: Hardware: %c%c%x.%x%x%x.\n",
-//            (Core->VendorId >> 24) & 0xff, (Core->VendorId >> 16) & 0xff,
-//            (Core->VendorId >> 12) & 0xf, (Core->VendorId >> 8) & 0xf,
-//            (Core->VendorId >> 4) & 0xf, (Core->VendorId >> 0) & 0xf);
-//    }
-//#endif
+
 //
 //    ReadBackReg(&Core->Hardware);
 //    if (Core->Hardware.Architecture != InternalDma) {
@@ -895,11 +862,6 @@ fn hcdInitialize() -> %void {
 //    LOG_DEBUG("HCD: Load completed.\n");
 //
 //    return OK;
-//deallocate:
-//    if (Core != NULL) MemoryDeallocate((void *)Core);
-//    if (Host != NULL) MemoryDeallocate((void *)Host);
-//    if (Power != NULL) MemoryDeallocate((void *)Power);
-//    return result;
 }
 
 fn hcdDeinitialize() {

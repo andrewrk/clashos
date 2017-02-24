@@ -96,7 +96,7 @@ error NullFrameBufferPointer;
 
 fn fb_init() -> %void {
     serial.log("Initializing USB...\n");
-    usb.init();
+    %%usb.init();
 
     serial.log("Initializing frame buffer...\n");
 

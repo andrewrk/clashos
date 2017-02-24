@@ -100,6 +100,7 @@ pub fn log(comptime format: []const u8, args: ...) {
         CloseBrace,
         Integer,
         IntegerWidth,
+        Character,
     };
     comptime var start_index: usize = 0;
     comptime var state = State.Start;
@@ -150,6 +151,9 @@ pub fn log(comptime format: []const u8, args: ...) {
                     width = 0;
                     state = State.Integer;
                 },
+                'c' => {
+                    state = State.Character;
+                },
                 else => @compileError("Unknown format character: " ++ c),
             },
             State.CloseBrace => switch (c) {
@@ -182,6 +186,15 @@ pub fn log(comptime format: []const u8, args: ...) {
                 },
                 '0' ... '9' => {},
                 else => @compileError("Expected '}' after 'x'/'X' in format string"),
+            },
+            State.Character => switch (c) {
+                '}' => {
+                    putc(args[next_arg]);
+                    next_arg += 1;
+                    state = State.Start;
+                    start_index = i + 1;
+                },
+                else => @compileError("Unexpected character in format string: " ++ c),
             },
         }
     }
