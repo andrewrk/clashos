@@ -4,6 +4,7 @@ const panic = @import("main.zig").panic;
 const assert = @import("std").debug.assert;
 const log = @import("serial.zig").log;
 const dumpMemory = @import("serial.zig").dumpMemory;
+const mmio = @import("mmio.zig");
 
 const maximum_devices = 8;
 var devices = []?UsbDevice{null} ** maximum_devices;
@@ -788,6 +789,15 @@ const UsbDeviceRequest = packed struct {
     Length: u16, // +0x6
 };
 
+
+const ARM_IO_BASE = 0x3f000000;
+const ARM_USB_BASE = ARM_IO_BASE + 0x980000;
+const ARM_USB_HOST_BASE = ARM_USB_BASE + 0x400;
+const ARM_USB_POWER = ARM_USB_BASE + 0xE00;
+
+const DWHCI_CORE_USER_ID = ARM_USB_BASE + 0x03c;
+const DWHCI_CORE_VENDOR_ID = ARM_USB_BASE + 0x040;
+
 const HCD_DESIGNWARE_BASE: usize = 0x3f980000;
 
 const core_physical = (&volatile CoreGlobalRegs)(HCD_DESIGNWARE_BASE);
@@ -808,22 +818,24 @@ fn hcdInitialize() -> %void {
 
     dumpMemory(usize(core_physical), @sizeOf(CoreGlobalRegs));
 
-    core.VendorId = core_physical.VendorId;
-    core.UserId = core_physical.UserId;
+    const vendor_id = mmio.read(DWHCI_CORE_VENDOR_ID);
+    const user_id = mmio.read(DWHCI_CORE_USER_ID);
+    //core.VendorId = core_physical.VendorId;
+    //core.UserId = core_physical.UserId;
 
-    if ((core.VendorId & 0xfffff000) != 0x4f542000) { // 'OT'2 
+    if ((vendor_id & 0xfffff000) != 0x4f542000) { // 'OT'2 
         log("HCD: Hardware: {c}{c}{x}.{x}{x}{x} (BCM{x5}). Driver incompatible. Expected OT2.xxx (BCM2708x).\n",
-            u8((core.VendorId >> 24) & 0xff), u8((core.VendorId >> 16) & 0xff),
-            u8((core.VendorId >> 12) & 0xf), u8((core.VendorId >> 8) & 0xf),
-            u8((core.VendorId >> 4) & 0xf), u8((core.VendorId >> 0) & 0xf), 
-            (core.UserId >> 12) & 0xFFFFF);
+            u8((vendor_id >> 24) & 0xff), u8((vendor_id >> 16) & 0xff),
+            u8((vendor_id >> 12) & 0xf), u8((vendor_id >> 8) & 0xf),
+            u8((vendor_id >> 4) & 0xf), u8((vendor_id >> 0) & 0xf), 
+            (user_id >> 12) & 0xFFFFF);
         return error.Incompatible;
     } else {
         log("HCD: Hardware: {c}{c}{x}.{x}{x}{x} (BCM{x5}).\n",
-            u8((core.VendorId >> 24) & 0xff), u8((core.VendorId >> 16) & 0xff),
-            u8((core.VendorId >> 12) & 0xf), u8((core.VendorId >> 8) & 0xf),
-            u8((core.VendorId >> 4) & 0xf), u8((core.VendorId >> 0) & 0xf), 
-            (core.UserId >> 12) & 0xFFFFF);
+            u8((vendor_id >> 24) & 0xff), u8((vendor_id >> 16) & 0xff),
+            u8((vendor_id >> 12) & 0xf), u8((vendor_id >> 8) & 0xf),
+            u8((vendor_id >> 4) & 0xf), u8((vendor_id >> 0) & 0xf), 
+            (user_id >> 12) & 0xFFFFF);
     }
 
     panic("TODO hcdInitialize");

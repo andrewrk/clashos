@@ -1,4 +1,4 @@
-const io = @import("std").io;
+const fmt = @import("std").fmt;
 const mmio = @import("mmio.zig");
 
 // The GPIO registers base address.
@@ -92,144 +92,12 @@ pub fn init() {
     mmio.write(UART0_CR, (1 << 0) | (1 << 8) | (1 << 9));
 }
 
-// TODO use the std io formating code instead of duplicating
 pub fn log(comptime format: []const u8, args: ...) {
-    const State = enum {
-        Start,
-        OpenBrace,
-        CloseBrace,
-        Integer,
-        IntegerWidth,
-        Character,
-    };
-    comptime var start_index: usize = 0;
-    comptime var state = State.Start;
-    comptime var next_arg: usize = 0;
-    comptime var radix = 0;
-    comptime var uppercase = false;
-    comptime var width: usize = 0;
-    comptime var width_start: usize = 0;
-    inline for (format) |c, i| {
-        switch (state) {
-            State.Start => switch (c) {
-                '{' => {
-                    if (start_index < i) write(format[start_index...i]);
-                    state = State.OpenBrace;
-                },
-                '}' => {
-                    if (start_index < i) write(format[start_index...i]);
-                    state = State.CloseBrace;
-                },
-                else => {},
-            },
-            State.OpenBrace => switch (c) {
-                '{' => {
-                    state = State.Start;
-                    start_index = i;
-                },
-                '}' => {
-                    logValue(args[next_arg]);
-                    next_arg += 1;
-                    state = State.Start;
-                    start_index = i + 1;
-                },
-                'd' => {
-                    radix = 10;
-                    uppercase = false;
-                    width = 0;
-                    state = State.Integer;
-                },
-                'x' => {
-                    radix = 16;
-                    uppercase = false;
-                    width = 0;
-                    state = State.Integer;
-                },
-                'X' => {
-                    radix = 16;
-                    uppercase = true;
-                    width = 0;
-                    state = State.Integer;
-                },
-                'c' => {
-                    state = State.Character;
-                },
-                else => @compileError("Unknown format character: " ++ c),
-            },
-            State.CloseBrace => switch (c) {
-                '}' => {
-                    state = State.Start;
-                    start_index = i;
-                },
-                else => @compileError("Single '}' encountered in format string"),
-            },
-            State.Integer => switch (c) {
-                '}' => {
-                    logInt(args[next_arg], radix, uppercase, width);
-                    next_arg += 1;
-                    state = State.Start;
-                    start_index = i + 1;
-                },
-                '0' ... '9' => {
-                    width_start = i;
-                    state = State.IntegerWidth;
-                },
-                else => @compileError("Unexpected character in format string: " ++ c),
-            },
-            State.IntegerWidth => switch (c) {
-                '}' => {
-                    width = comptime %%io.parseUnsigned(usize, format[width_start...i], 10);
-                    logInt(args[next_arg], radix, uppercase, width);
-                    next_arg += 1;
-                    state = State.Start;
-                    start_index = i + 1;
-                },
-                '0' ... '9' => {},
-                else => @compileError("Expected '}' after 'x'/'X' in format string"),
-            },
-            State.Character => switch (c) {
-                '}' => {
-                    putc(args[next_arg]);
-                    next_arg += 1;
-                    state = State.Start;
-                    start_index = i + 1;
-                },
-                else => @compileError("Unexpected character in format string: " ++ c),
-            },
-        }
-    }
-    comptime {
-        if (args.len != next_arg) {
-            @compileError("Unused arguments");
-        }
-        switch (state) {
-            State.Start => {},
-            else => @compileError("Incomplete format string: " ++ format),
-        }
-    }
-    if (start_index < format.len) {
-        write(format[start_index...format.len]);
-    }
+    _ = fmt.format({}, logBytes, format, args);
 }
-
-fn logValue(value: var) {
-    const T = @typeOf(value);
-    if (@isInteger(T)) {
-        return logInt(value, 10, false, 0);
-    } else if (@canImplicitCast([]const u8, value)) {
-        const casted_value = ([]const u8)(value);
-        return write(casted_value);
-    } else if (T == void) {
-        return write("void");
-    } else {
-        @compileError("Unable to print type '" ++ @typeName(T) ++ "'");
-    }
-}
-
-fn logInt(value: var, base: u8, uppercase: bool, width: usize) {
-    var buf: [65]u8 = undefined;
-    const amt_printed = io.bufPrintInt(buf[0...], value, base, uppercase, width);
-    write(buf[0...amt_printed]);
+fn logBytes(context: void, bytes: []const u8) -> bool {
+    write(bytes);
+    return true;
 }
 
 pub fn dumpMemory(address: usize, size: usize) {
