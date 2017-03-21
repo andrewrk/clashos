@@ -1,7 +1,7 @@
 const assert = std.debug.assert;
 const serial = @import("serial.zig");
 const mmio = @import("mmio.zig");
-const usb = @import("usb.zig");
+//const usb = @import("usb.zig");
 
 // The linker will make the address of these global variables equal
 // to the value we are interested in. The memory at the address
@@ -29,7 +29,11 @@ export nakedcc fn _start() -> unreachable {
     : : : "r0");
 
     // clear .bss
-    @memset(&volatile __bss_start, 0, usize(&__bss_end) - usize(&__bss_start));
+    // TODO LLD gives a bogus address to __bss_end when the .bss section is empty.
+    // https://bugs.llvm.org/show_bug.cgi?id=32331
+    if (usize(&__bss_end) > usize(&__bss_start)) {
+        @memset(&volatile __bss_start, 0, usize(&__bss_end) - usize(&__bss_start));
+    }
 
     kernel_main();
 }
@@ -95,8 +99,8 @@ error NonZeroFrameBufferResponse;
 error NullFrameBufferPointer;
 
 fn fb_init() -> %void {
-    serial.log("Initializing USB...\n");
-    %%usb.init();
+    //serial.log("Initializing USB...\n");
+    //%%usb.init();
 
     serial.log("Initializing frame buffer...\n");
 
