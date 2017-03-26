@@ -13,7 +13,7 @@ extern var __bss_end: u8;
 // r1 -> 0x00000C42
 // r2 -> 0x00000100 - start of ATAGS
 // r15 -> should begin execution at 0x8000.
-export nakedcc fn _start() -> unreachable {
+export nakedcc fn _start() -> noreturn {
     // to keep this in the first portion of the binary
     @setGlobalSection(_start, ".text.boot");
 
@@ -38,7 +38,7 @@ export nakedcc fn _start() -> unreachable {
     kernel_main();
 }
 
-pub fn panic(message: []const u8) -> unreachable {
+pub fn panic(message: []const u8) -> noreturn {
     serial.write(message);
     serial.write("\n!KERNEL PANIC!\n");
     while (true) {
@@ -46,7 +46,7 @@ pub fn panic(message: []const u8) -> unreachable {
     }
 }
 
-fn kernel_main() -> unreachable {
+fn kernel_main() -> noreturn {
     serial.init();
     serial.log("ClashOS 0.0\n");
 
