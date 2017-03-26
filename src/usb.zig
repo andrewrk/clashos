@@ -890,7 +890,7 @@ fn hidAttach(device: &UsbDevice, interface_number: u32) -> %void {
         return error.Incompatible;
     }
     
-    if (UsbDirection(device.endpoints[interface_number].endpoint_address.direction) != UsbDirection.DeviceToHost ||
+    if (UsbDirection(device.endpoints[interface_number].endpoint_address.direction) != UsbDirection.DeviceToHost or
         UsbTransfer(device.endpoints[interface_number].attributes.transfer_type) != UsbTransfer.Interrupt)
     {
         log("HID: Invalid HID device with unusual endpoints (0).\n");
