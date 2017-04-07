@@ -106,7 +106,7 @@ fn fb_init() -> %void {
 
     // We need to put the frame buffer structure somewhere with the lower 4 bits zero.
     // 0x400000 is a convenient place not used by anything, and with sufficient alignment
-    const fb = (&volatile Bcm2836FrameBuffer)(0x400000);
+    const fb = @intToPtr(&volatile Bcm2836FrameBuffer, 0x400000);
 
     const width = 800;
     const height = 600;
@@ -131,7 +131,7 @@ fn fb_init() -> %void {
     if (response != 0) return error.NonZeroFrameBufferResponse;
     if (fb.pointer == 0) return error.NullFrameBufferPointer;
 
-    fb_info.ptr = (&u8)(VcToArm(fb.pointer));
+    fb_info.ptr = @intToPtr(&u8, VcToArm(fb.pointer));
     fb_info.size = fb.size;
     fb_info.width = fb.width;
     fb_info.height = fb.height;

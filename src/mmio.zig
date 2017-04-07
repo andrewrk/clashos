@@ -1,11 +1,11 @@
 pub fn write(reg: usize, data: u32) {
     @fence(AtomicOrder.SeqCst);
-    *(&volatile u32)(reg) = data;
+    *@intToPtr(&volatile u32, reg) = data;
 }
 
 pub fn read(reg: usize) -> u32 {
     @fence(AtomicOrder.SeqCst);
-    return *(&volatile usize)(reg);
+    return *@intToPtr(&volatile usize, reg);
 }
 
 pub fn bigTimeExtraMemoryBarrier() {
