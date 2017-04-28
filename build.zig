@@ -7,33 +7,7 @@ pub fn build(b: &Builder) {
     exe.setRelease(release);
 
     exe.setTarget(Arch.armv7, Os.freestanding, Environ.gnueabihf);
-    exe.setLinkerScriptContents(
-        \\ENTRY(_start)
-        \\
-        \\SECTIONS {
-        \\    . = 0x8000;
-        \\
-        \\    .text : ALIGN(4K) {
-        \\        KEEP(*(.text.boot))
-        \\        *(.text)
-        \\    }
-        \\
-        \\    .rodata : ALIGN(4K) {
-        \\        *(.rodata)
-        \\    }
-        \\
-        \\    .data : ALIGN(4K) {
-        \\        *(.data)
-        \\    }
-        \\
-        \\    __bss_start = .;
-        \\    .bss : ALIGN(4K) {
-        \\        *(COMMON)
-        \\        *(.bss)
-        \\    }
-        \\    __bss_end = .;
-        \\}
-    );
+    exe.setLinkerScriptPath("src/linker.ld");
 
     b.default_step.dependOn(&exe.step);
 }
