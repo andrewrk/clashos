@@ -5,7 +5,7 @@ pub fn build(b: &Builder) {
 
     const exe = b.addExecutable("clashos", "src/main.zig");
     exe.setRelease(release);
-
+    exe.setOutputPath("clashos");
     exe.setTarget(Arch.armv7, Os.freestanding, Environ.gnueabihf);
     exe.setLinkerScriptPath("src/linker.ld");
 
