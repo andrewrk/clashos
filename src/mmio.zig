@@ -1,3 +1,5 @@
+const AtomicOrder = @import("builtin").AtomicOrder;
+
 pub fn write(reg: usize, data: u32) {
     @fence(AtomicOrder.SeqCst);
     *@intToPtr(&volatile u32, reg) = data;

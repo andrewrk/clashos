@@ -1,6 +1,7 @@
 const assert = std.debug.assert;
 const serial = @import("serial.zig");
 const mmio = @import("mmio.zig");
+const AtomicOrder = @import("builtin").AtomicOrder;
 //const usb = @import("usb.zig");
 
 // The linker will make the address of these global variables equal
