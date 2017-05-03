@@ -140,8 +140,8 @@ fn fb_init() -> %void {
 }
 
 fn fb_clear(color: &const Color) {
-    {var y: usize = 0; while (y < fb_info.height; y += 1) {
-        {var x: usize = 0; while (x < fb_info.width; x += 1) {
+    {var y: usize = 0; while (y < fb_info.height) : (y += 1) {
+        {var x: usize = 0; while (x < fb_info.width) : (x += 1) {
             const offset = y * fb_info.pitch + x * 3;
             fb_info.ptr[offset] = color.red;
             fb_info.ptr[offset + 1] = color.green;

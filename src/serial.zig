@@ -102,7 +102,7 @@ fn logBytes(context: void, bytes: []const u8) -> bool {
 
 pub fn dumpMemory(address: usize, size: usize) {
     var i: usize = 0;
-    while (i < size; i += 1) {
+    while (i < size) : (i += 1) {
         const full_addr = address + i;
 
         if (i % 16 == 0) {
@@ -119,7 +119,7 @@ pub fn dumpMemory(address: usize, size: usize) {
 // Loop count times in a way that the compiler won't optimize away.
 fn delay(count: usize) {
     var i: usize = 0;
-    while (i < count; i += 1) {
+    while (i < count) : (i += 1) {
         asm volatile("mov r0, r0");
     }
 }
