@@ -52,9 +52,9 @@ fn kernel_main() -> noreturn {
     serial.log("ClashOS 0.0\n");
 
     while (true) {
-        try(fb_init()) {
+        if (fb_init()) {
             break;
-        } else {
+        } else |_| {
             panic("Unable to initialize framebuffer");
         }
     }
