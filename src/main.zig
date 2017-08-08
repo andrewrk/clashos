@@ -32,8 +32,8 @@ export nakedcc fn _start() -> noreturn {
     // clear .bss
     // TODO LLD gives a bogus address to __bss_end when the .bss section is empty.
     // https://bugs.llvm.org/show_bug.cgi?id=32331
-    if (usize(&__bss_end) > usize(&__bss_start)) {
-        @memset(&volatile __bss_start, 0, usize(&__bss_end) - usize(&__bss_start));
+    if (@ptrToInt(&__bss_end) > @ptrToInt(&__bss_start)) {
+        @memset(&volatile __bss_start, 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
     }
 
     kernel_main();
@@ -125,7 +125,7 @@ fn fb_init() -> %void {
     fb.size = 0;
 
     // Tell the GPU the address of the structure
-    mbox_write(ArmToVc(usize(fb)));
+    mbox_write(ArmToVc(@ptrToInt(fb)));
 
     // Wait for the GPU to respond, and get its response
     const response = mbox_read();
