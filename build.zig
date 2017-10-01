@@ -13,7 +13,8 @@ pub fn build(b: &Builder) {
     b.default_step.dependOn(&exe.step);
 
     const qemu = b.step("qemu", "Run the OS in qemu");
-    const run_qemu = b.addCommand(".", b.env_map, "qemu-system-arm", [][]const u8 {
+    const run_qemu = b.addCommand(".", b.env_map, [][]const u8 {
+        "qemu-system-arm", 
         "-kernel", "clashos",
         "-m", "256",
         "-M", "raspi2",
