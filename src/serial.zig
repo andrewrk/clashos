@@ -95,9 +95,8 @@ pub fn init() {
 pub fn log(comptime format: []const u8, args: ...) {
     _ = fmt.format({}, logBytes, format, args);
 }
-fn logBytes(context: void, bytes: []const u8) -> bool {
+fn logBytes(context: void, bytes: []const u8) -> %void {
     write(bytes);
-    return true;
 }
 
 pub fn dumpMemory(address: usize, size: usize) {
