@@ -14,10 +14,8 @@ extern var __bss_end: u8;
 // r1 -> 0x00000C42
 // r2 -> 0x00000100 - start of ATAGS
 // r15 -> should begin execution at 0x8000.
-export nakedcc fn _start() -> noreturn {
-    // to keep this in the first portion of the binary
-    @setGlobalSection(_start, ".text.boot");
-
+// .text.boot to keep this in the first portion of the binary
+export nakedcc fn _start() section(".text.boot") -> noreturn {
     // set up the stack and
     // enable vector operations
     asm volatile (
@@ -33,7 +31,7 @@ export nakedcc fn _start() -> noreturn {
     // TODO LLD gives a bogus address to __bss_end when the .bss section is empty.
     // https://bugs.llvm.org/show_bug.cgi?id=32331
     if (@ptrToInt(&__bss_end) > @ptrToInt(&__bss_start)) {
-        @memset(&volatile __bss_start, 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
+        @memset((&volatile u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
     }
 
     kernel_main();
