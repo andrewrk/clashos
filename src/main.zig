@@ -197,10 +197,10 @@ fn mbox_read() -> u32 {
 fn ArmToVc(addr: usize) -> usize {
     // Some things (e.g: the GPU) expect bus addresses, not ARM physical
     // addresses
-    addr + 0xC0000000
+    return addr + 0xC0000000;
 }
 
 fn VcToArm(addr: usize) -> usize {
     // Go the other way to ArmToVc
-    addr - 0xC0000000
+    return addr - 0xC0000000;
 }
