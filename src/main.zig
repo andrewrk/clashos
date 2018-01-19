@@ -1,7 +1,8 @@
 const assert = std.debug.assert;
 const serial = @import("serial.zig");
 const mmio = @import("mmio.zig");
-const AtomicOrder = @import("builtin").AtomicOrder;
+const builtin = @import("builtin");
+const AtomicOrder = builtin.AtomicOrder;
 //const usb = @import("usb.zig");
 
 // The linker will make the address of these global variables equal
@@ -37,7 +38,7 @@ export nakedcc fn _start() section(".text.boot") -> noreturn {
     kernel_main();
 }
 
-pub fn panic(message: []const u8) -> noreturn {
+pub fn panic(message: []const u8, stack_trace: ?&builtin.StackTrace) -> noreturn {
     serial.write(message);
     serial.write("\n!KERNEL PANIC!\n");
     while (true) {
@@ -53,7 +54,7 @@ fn kernel_main() -> noreturn {
         if (fb_init()) {
             break;
         } else |_| {
-            panic("Unable to initialize framebuffer");
+            panic("Unable to initialize framebuffer", null);
         }
     }
 

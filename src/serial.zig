@@ -93,7 +93,7 @@ pub fn init() {
 }
 
 pub fn log(comptime format: []const u8, args: ...) {
-    %%fmt.format({}, logBytes, format, args);
+    fmt.format({}, logBytes, format, args) catch unreachable;
 }
 fn logBytes(context: void, bytes: []const u8) -> %void {
     write(bytes);
