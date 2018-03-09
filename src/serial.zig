@@ -35,24 +35,24 @@ const UART0_ITIP   = (UART0_BASE + 0x84);
 const UART0_ITOP   = (UART0_BASE + 0x88);
 const UART0_TDR    = (UART0_BASE + 0x8C);
 
-pub fn putc(byte: u8) {
+pub fn putc(byte: u8) void {
     // Wait for UART to become ready to transmit.
     while ( (mmio.read(UART0_FR) & (1 << 5)) != 0 ) { }
     mmio.write(UART0_DR, byte);
 }
 
-pub fn getc() -> u8 {
+pub fn getc() u8 {
     // Wait for UART to have recieved something.
     while ( (mmio.read(UART0_FR) & (1 << 4)) != 0 ) { }
     const c = @truncate(u8, mmio.read(UART0_DR));
     return if (c == '\r') '\n' else c;
 }
 
-pub fn write(buffer: []const u8) {
+pub fn write(buffer: []const u8) void {
     for (buffer) |c| putc(c);
 }
 
-pub fn init() {
+pub fn init() void {
     // Disable UART0.
     mmio.write(UART0_CR, 0x00000000);
     // Setup the GPIO pin 14 && 15.
@@ -92,14 +92,16 @@ pub fn init() {
     mmio.write(UART0_CR, (1 << 0) | (1 << 8) | (1 << 9));
 }
 
-pub fn log(comptime format: []const u8, args: ...) {
-    fmt.format({}, logBytes, format, args) catch unreachable;
+const NoError = error{};
+
+pub fn log(comptime format: []const u8, args: ...) void {
+    fmt.format({}, NoError, logBytes, format, args) catch |e| switch (e) {};
 }
-fn logBytes(context: void, bytes: []const u8) -> %void {
+fn logBytes(context: void, bytes: []const u8) NoError!void {
     write(bytes);
 }
 
-pub fn dumpMemory(address: usize, size: usize) {
+pub fn dumpMemory(address: usize, size: usize) void {
     var i: usize = 0;
     while (i < size) : (i += 1) {
         const full_addr = address + i;
@@ -116,7 +118,7 @@ pub fn dumpMemory(address: usize, size: usize) {
 }
 
 // Loop count times in a way that the compiler won't optimize away.
-fn delay(count: usize) {
+fn delay(count: usize) void {
     var i: usize = 0;
     while (i < count) : (i += 1) {
         asm volatile("mov r0, r0");

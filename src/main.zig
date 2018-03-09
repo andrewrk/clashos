@@ -16,7 +16,7 @@ extern var __bss_end: u8;
 // r2 -> 0x00000100 - start of ATAGS
 // r15 -> should begin execution at 0x8000.
 // .text.boot to keep this in the first portion of the binary
-export nakedcc fn _start() section(".text.boot") -> noreturn {
+export nakedcc fn _start() section(".text.boot") noreturn {
     // set up the stack and
     // enable vector operations
     asm volatile (
@@ -38,7 +38,7 @@ export nakedcc fn _start() section(".text.boot") -> noreturn {
     kernel_main();
 }
 
-pub fn panic(message: []const u8, stack_trace: ?&builtin.StackTrace) -> noreturn {
+pub fn panic(message: []const u8, stack_trace: ?&builtin.StackTrace) noreturn {
     serial.write(message);
     serial.write("\n!KERNEL PANIC!\n");
     while (true) {
@@ -46,7 +46,7 @@ pub fn panic(message: []const u8, stack_trace: ?&builtin.StackTrace) -> noreturn
     }
 }
 
-fn kernel_main() -> noreturn {
+fn kernel_main() noreturn {
     serial.init();
     serial.log("ClashOS 0.0\n");
 
@@ -95,10 +95,7 @@ const Bcm2836FrameBuffer = packed struct {
     size: usize, // GPU fills this in
 };
 
-error NonZeroFrameBufferResponse;
-error NullFrameBufferPointer;
-
-fn fb_init() -> %void {
+fn fb_init() !void {
     //serial.log("Initializing USB...\n");
     //%%usb.init();
 
@@ -138,7 +135,7 @@ fn fb_init() -> %void {
     fb_info.pitch = fb.pitch;
 }
 
-fn fb_clear(color: &const Color) {
+fn fb_clear(color: &const Color) void {
     {var y: usize = 0; while (y < fb_info.height) : (y += 1) {
         {var x: usize = 0; while (x < fb_info.width) : (x += 1) {
             const offset = y * fb_info.pitch + x * 3;
@@ -175,14 +172,14 @@ const MAIL_EMPTY = 0x40000000;
 
 const MAIL_FB = 1; // The frame buffer uses channel 1
 
-fn mbox_write(v: u32) {
+fn mbox_write(v: u32) void {
     // wait for space
     while (mmio.read(MAIL_STATUS) & MAIL_FULL != 0) {}
     // Write the value to the frame buffer channel
     mmio.write(MAIL_WRITE, MAIL_FB | (v & 0xFFFFFFF0));
 }
 
-fn mbox_read() -> u32 {
+fn mbox_read() u32 {
     while (true) {
         // wait for data
         while (mmio.read(MAIL_STATUS) & MAIL_EMPTY != 0) {}
@@ -195,13 +192,13 @@ fn mbox_read() -> u32 {
     }
 }
 
-fn ArmToVc(addr: usize) -> usize {
+fn ArmToVc(addr: usize) usize {
     // Some things (e.g: the GPU) expect bus addresses, not ARM physical
     // addresses
     return addr + 0xC0000000;
 }
 
-fn VcToArm(addr: usize) -> usize {
+fn VcToArm(addr: usize) usize {
     // Go the other way to ArmToVc
     return addr - 0xC0000000;
 }
