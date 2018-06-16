@@ -16,40 +16,41 @@ const GPPUDCLK0 = (GPIO_BASE + 0x98);
 const UART0_BASE = 0x3F201000;
 
 // The offsets for reach register for the UART.
-const UART0_DR     = (UART0_BASE + 0x00);
+const UART0_DR = (UART0_BASE + 0x00);
 const UART0_RSRECR = (UART0_BASE + 0x04);
-const UART0_FR     = (UART0_BASE + 0x18);
-const UART0_ILPR   = (UART0_BASE + 0x20);
-const UART0_IBRD   = (UART0_BASE + 0x24);
-const UART0_FBRD   = (UART0_BASE + 0x28);
-const UART0_LCRH   = (UART0_BASE + 0x2C);
-const UART0_CR     = (UART0_BASE + 0x30);
-const UART0_IFLS   = (UART0_BASE + 0x34);
-const UART0_IMSC   = (UART0_BASE + 0x38);
-const UART0_RIS    = (UART0_BASE + 0x3C);
-const UART0_MIS    = (UART0_BASE + 0x40);
-const UART0_ICR    = (UART0_BASE + 0x44);
-const UART0_DMACR  = (UART0_BASE + 0x48);
-const UART0_ITCR   = (UART0_BASE + 0x80);
-const UART0_ITIP   = (UART0_BASE + 0x84);
-const UART0_ITOP   = (UART0_BASE + 0x88);
-const UART0_TDR    = (UART0_BASE + 0x8C);
+const UART0_FR = (UART0_BASE + 0x18);
+const UART0_ILPR = (UART0_BASE + 0x20);
+const UART0_IBRD = (UART0_BASE + 0x24);
+const UART0_FBRD = (UART0_BASE + 0x28);
+const UART0_LCRH = (UART0_BASE + 0x2C);
+const UART0_CR = (UART0_BASE + 0x30);
+const UART0_IFLS = (UART0_BASE + 0x34);
+const UART0_IMSC = (UART0_BASE + 0x38);
+const UART0_RIS = (UART0_BASE + 0x3C);
+const UART0_MIS = (UART0_BASE + 0x40);
+const UART0_ICR = (UART0_BASE + 0x44);
+const UART0_DMACR = (UART0_BASE + 0x48);
+const UART0_ITCR = (UART0_BASE + 0x80);
+const UART0_ITIP = (UART0_BASE + 0x84);
+const UART0_ITOP = (UART0_BASE + 0x88);
+const UART0_TDR = (UART0_BASE + 0x8C);
 
 pub fn putc(byte: u8) void {
     // Wait for UART to become ready to transmit.
-    while ( (mmio.read(UART0_FR) & (1 << 5)) != 0 ) { }
+    while ((mmio.read(UART0_FR) & (1 << 5)) != 0) {}
     mmio.write(UART0_DR, byte);
 }
 
 pub fn getc() u8 {
     // Wait for UART to have recieved something.
-    while ( (mmio.read(UART0_FR) & (1 << 4)) != 0 ) { }
+    while ((mmio.read(UART0_FR) & (1 << 4)) != 0) {}
     const c = @truncate(u8, mmio.read(UART0_DR));
     return if (c == '\r') '\n' else c;
 }
 
 pub fn write(buffer: []const u8) void {
-    for (buffer) |c| putc(c);
+    for (buffer) |c|
+        putc(c);
 }
 
 pub fn init() void {
@@ -86,7 +87,7 @@ pub fn init() void {
 
     // Mask all interrupts.
     mmio.write(UART0_IMSC, (1 << 1) | (1 << 4) | (1 << 5) | (1 << 6) |
-                           (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10));
+        (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10));
 
     // Enable UART0, receive & transfer part of UART.
     mmio.write(UART0_CR, (1 << 0) | (1 << 8) | (1 << 9));
@@ -112,7 +113,7 @@ pub fn dumpMemory(address: usize, size: usize) void {
             log(" ");
         }
 
-        log(" {x2}", *(&const u8)(full_addr));
+        log(" {x2}", ((*const u8)(full_addr)).*);
     }
     log("\n");
 }
@@ -121,7 +122,6 @@ pub fn dumpMemory(address: usize, size: usize) void {
 fn delay(count: usize) void {
     var i: usize = 0;
     while (i < count) : (i += 1) {
-        asm volatile("mov r0, r0");
+        asm volatile ("mov r0, r0");
     }
 }
-

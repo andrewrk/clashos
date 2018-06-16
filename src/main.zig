@@ -32,13 +32,13 @@ export nakedcc fn _start() section(".text.boot") noreturn {
     // TODO LLD gives a bogus address to __bss_end when the .bss section is empty.
     // https://bugs.llvm.org/show_bug.cgi?id=32331
     if (@ptrToInt(&__bss_end) > @ptrToInt(&__bss_start)) {
-        @memset((&volatile u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
+        @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
     }
 
     kernel_main();
 }
 
-pub fn panic(message: []const u8, stack_trace: ?&builtin.StackTrace) noreturn {
+pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
     serial.write(message);
     serial.write("\n!KERNEL PANIC!\n");
     while (true) {
@@ -78,7 +78,7 @@ const FbInfo = struct {
     width: usize,
     height: usize,
     pitch: usize, //BCM2836 has this separate, so we use this instead of witdh
-    ptr: &volatile u8,
+    ptr: [*]volatile u8,
     size: usize,
 };
 
@@ -103,7 +103,7 @@ fn fb_init() !void {
 
     // We need to put the frame buffer structure somewhere with the lower 4 bits zero.
     // 0x400000 is a convenient place not used by anything, and with sufficient alignment
-    const fb = @intToPtr(&volatile Bcm2836FrameBuffer, 0x400000);
+    const fb = @intToPtr(*volatile Bcm2836FrameBuffer, 0x400000);
 
     const width = 800;
     const height = 600;
@@ -128,14 +128,14 @@ fn fb_init() !void {
     if (response != 0) return error.NonZeroFrameBufferResponse;
     if (fb.pointer == 0) return error.NullFrameBufferPointer;
 
-    fb_info.ptr = @intToPtr(&u8, VcToArm(fb.pointer));
+    fb_info.ptr = @intToPtr([*]u8, VcToArm(fb.pointer));
     fb_info.size = fb.size;
     fb_info.width = fb.width;
     fb_info.height = fb.height;
     fb_info.pitch = fb.pitch;
 }
 
-fn fb_clear(color: &const Color) void {
+fn fb_clear(color: *const Color) void {
     {var y: usize = 0; while (y < fb_info.height) : (y += 1) {
         {var x: usize = 0; while (x < fb_info.width) : (x += 1) {
             const offset = y * fb_info.pitch + x * 3;
