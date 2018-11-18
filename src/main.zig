@@ -3,7 +3,6 @@ const serial = @import("serial.zig");
 const mmio = @import("mmio.zig");
 const builtin = @import("builtin");
 const AtomicOrder = builtin.AtomicOrder;
-//const usb = @import("usb.zig");
 
 // The linker will make the address of these global variables equal
 // to the value we are interested in. The memory at the address
@@ -11,31 +10,34 @@ const AtomicOrder = builtin.AtomicOrder;
 extern var __bss_start: u8;
 extern var __bss_end: u8;
 
-// r0 -> 0x00000000
-// r1 -> 0x00000C42
-// r2 -> 0x00000100 - start of ATAGS
-// r15 -> should begin execution at 0x8000.
 // .text.boot to keep this in the first portion of the binary
-export nakedcc fn _start() section(".text.boot") noreturn {
-    // set up the stack and
-    // enable vector operations
+export nakedcc fn _start() linksection(".text.boot") noreturn {
     asm volatile (
+        \\ mrs x0,mpidr_el1
+        \\ mov x1,#0xFF000000
+        \\ bic x0,x0,x1
+        \\ cbz x0,core0
+        \\ sub x1,x0,#1
+        \\ cbz x1,core1
+        \\ sub x1,x0,#2
+        \\ cbz x1,core2
+        \\ sub x1,x0,#3
+        \\ cbz x1,core3
+        \\hang:
+        \\ wfe
+        \\ b hang
+        \\core0:
         \\ mov sp, #0x8000
-        \\ mov r0, #0x00f00000
-        \\ mcr p15, 0, r0, c1, c0, 2
-        \\ isb
-        \\ mov r0, #0x40000000
-        \\ vmsr FPEXC, r0
-    : : : "r0");
-
-    // clear .bss
-    // TODO LLD gives a bogus address to __bss_end when the .bss section is empty.
-    // https://bugs.llvm.org/show_bug.cgi?id=32331
-    if (@ptrToInt(&__bss_end) > @ptrToInt(&__bss_start)) {
-        @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
-    }
-
-    kernel_main();
+        \\ bl kernel_main
+        \\ b hang
+        \\core1:
+        \\ b hang
+        \\core2:
+        \\ b hang
+        \\core3:
+        \\ b hang
+    );
+    unreachable;
 }
 
 pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
@@ -46,30 +48,33 @@ pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
     }
 }
 
-fn kernel_main() noreturn {
+export fn kernel_main() noreturn {
+    // clear .bss
+    @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
+
     serial.init();
     serial.log("ClashOS 0.0\n");
 
-    while (true) {
-        if (fb_init()) {
-            break;
-        } else |_| {
-            panic("Unable to initialize framebuffer", null);
-        }
-    }
+    //while (true) {
+    //    if (fb_init()) {
+    //        break;
+    //    } else |_| {
+    //        panic("Unable to initialize framebuffer", null);
+    //    }
+    //}
 
-    serial.log("Screen size: {}x{}\n", fb_info.width, fb_info.height);
+    //serial.log("Screen size: {}x{}\n", fb_info.width, fb_info.height);
 
-    fb_clear(&color_blue);
+    //fb_clear(&color_blue);
 
     while (true) {
         serial.putc(serial.getc());
     }
 }
 
-const color_red = Color { .red = 255, .green = 0, .blue = 0 };
-const color_green = Color { .red = 0, .green = 255, .blue = 0 };
-const color_blue = Color { .red = 0, .green = 0, .blue = 255 };
+const color_red = Color{ .red = 255, .green = 0, .blue = 0 };
+const color_green = Color{ .red = 0, .green = 255, .blue = 0 };
+const color_blue = Color{ .red = 0, .green = 0, .blue = 255 };
 
 var fb_info: FbInfo = undefined;
 
@@ -95,10 +100,9 @@ const Bcm2836FrameBuffer = packed struct {
     size: usize, // GPU fills this in
 };
 
-fn fb_init() !void {
+fn fb_init() error{}!void {
     //serial.log("Initializing USB...\n");
     //%%usb.init();
-
     serial.log("Initializing frame buffer...\n");
 
     // We need to put the frame buffer structure somewhere with the lower 4 bits zero.
@@ -120,30 +124,36 @@ fn fb_init() !void {
     fb.pointer = 0;
     fb.size = 0;
 
-    // Tell the GPU the address of the structure
-    mbox_write(ArmToVc(@ptrToInt(fb)));
+    //// Tell the GPU the address of the structure
+    //mbox_write(ArmToVc(@ptrToInt(fb)));
 
-    // Wait for the GPU to respond, and get its response
-    const response = mbox_read();
-    if (response != 0) return error.NonZeroFrameBufferResponse;
-    if (fb.pointer == 0) return error.NullFrameBufferPointer;
+    //// Wait for the GPU to respond, and get its response
+    //const response = mbox_read();
+    //if (response != 0) return error.NonZeroFrameBufferResponse;
+    //if (fb.pointer == 0) return error.NullFrameBufferPointer;
 
-    fb_info.ptr = @intToPtr([*]u8, VcToArm(fb.pointer));
-    fb_info.size = fb.size;
-    fb_info.width = fb.width;
-    fb_info.height = fb.height;
-    fb_info.pitch = fb.pitch;
+    //fb_info.ptr = @intToPtr([*]u8, VcToArm(fb.pointer));
+    //fb_info.size = fb.size;
+    //fb_info.width = fb.width;
+    //fb_info.height = fb.height;
+    //fb_info.pitch = fb.pitch;
 }
 
 fn fb_clear(color: *const Color) void {
-    {var y: usize = 0; while (y < fb_info.height) : (y += 1) {
-        {var x: usize = 0; while (x < fb_info.width) : (x += 1) {
-            const offset = y * fb_info.pitch + x * 3;
-            fb_info.ptr[offset] = color.red;
-            fb_info.ptr[offset + 1] = color.green;
-            fb_info.ptr[offset + 2] = color.blue;
-        }}
-    }}
+    {
+        var y: usize = 0;
+        while (y < fb_info.height) : (y += 1) {
+            {
+                var x: usize = 0;
+                while (x < fb_info.width) : (x += 1) {
+                    const offset = y * fb_info.pitch + x * 3;
+                    fb_info.ptr[offset] = color.red;
+                    fb_info.ptr[offset + 1] = color.green;
+                    fb_info.ptr[offset + 2] = color.blue;
+                }
+            }
+        }
+    }
     @fence(AtomicOrder.SeqCst);
 }
 

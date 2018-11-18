@@ -7,7 +7,7 @@ pub fn write(reg: usize, data: u32) void {
 
 pub fn read(reg: usize) u32 {
     @fence(AtomicOrder.SeqCst);
-    return @intToPtr(*volatile usize, reg).*;
+    return @intToPtr(*volatile u32, reg).*;
 }
 
 pub fn bigTimeExtraMemoryBarrier() void {
