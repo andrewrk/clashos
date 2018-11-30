@@ -10,34 +10,24 @@ const AtomicOrder = builtin.AtomicOrder;
 extern var __bss_start: u8;
 extern var __bss_end: u8;
 
-// .text.boot to keep this in the first portion of the binary
-export nakedcc fn _start() linksection(".text.boot") noreturn {
+comptime {
+    // .text.boot to keep this in the first portion of the binary
     asm volatile (
+        \\.section .text.boot
+        \\.globl _start
+        \\_start:
         \\ mrs x0,mpidr_el1
-        \\ mov x1,#0xFF000000
+        \\ mov x1,#0xC1000000
         \\ bic x0,x0,x1
-        \\ cbz x0,core0
-        \\ sub x1,x0,#1
-        \\ cbz x1,core1
-        \\ sub x1,x0,#2
-        \\ cbz x1,core2
-        \\ sub x1,x0,#3
-        \\ cbz x1,core3
+        \\ cbz x0,master
+        \\ b hang
+        \\master:
+        \\ mov sp,#0x08000000
+        \\ bl kernel_main
         \\hang:
         \\ wfe
         \\ b hang
-        \\core0:
-        \\ mov sp, #0x8000
-        \\ bl kernel_main
-        \\ b hang
-        \\core1:
-        \\ b hang
-        \\core2:
-        \\ b hang
-        \\core3:
-        \\ b hang
     );
-    unreachable;
 }
 
 pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
