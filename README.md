@@ -21,8 +21,11 @@ zig build qemu
 
 ## Roadmap
 
- * Disable unused CPU cores to save power
  * Test it on actual hardware
+ * Interface with the file system
+ * Ability to send a new kernel image via UART
  * Interface with the video driver
- * USB driver support for xbox360 controllers for testing the game
-
+ * Get a simple joystick and button and use GPIO
+ * Sound (should it be the analog or over HDMI)?
+ * Make the game
+ * Build arcade cabinets
