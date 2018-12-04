@@ -6,6 +6,4 @@ kernel_old=1
 dtparam=audio=on
 arm_control=0x200
 disable_splash=1
-
-# TODO set this to lower value if we can to improve boot time
-boot_delay=1
+boot_delay=0

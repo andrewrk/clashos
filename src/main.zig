@@ -1,8 +1,10 @@
+const std = @import("std");
 const assert = std.debug.assert;
 const serial = @import("serial.zig");
 const mmio = @import("mmio.zig");
 const builtin = @import("builtin");
 const AtomicOrder = builtin.AtomicOrder;
+const debug = @import("debug.zig");
 
 // The linker will make the address of these global variables equal
 // to the value we are interested in. The memory at the address
@@ -30,12 +32,30 @@ comptime {
     );
 }
 
+var already_panicking: bool = false;
+
 pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
-    serial.write(message);
-    serial.write("\n!KERNEL PANIC!\n");
-    while (true) {
-        asm volatile ("wfe");
+    @setCold(true);
+    if (already_panicking) {
+        serial.write("\npanicked during kernel panic\n");
+        debug.wfe_hang();
     }
+    already_panicking = true;
+
+    serial.write("\n!KERNEL PANIC!\n");
+    serial.write(message);
+    serial.write("\n");
+
+    const first_trace_addr = @ptrToInt(@returnAddress());
+    if (stack_trace) |t| {
+        debug.dumpStackTrace(t);
+    }
+    debug.dumpCurrentStackTrace(first_trace_addr);
+    debug.wfe_hang();
+}
+
+fn some_function() void {
+    serial.boom();
 }
 
 export fn kernel_main() noreturn {
@@ -43,7 +63,8 @@ export fn kernel_main() noreturn {
     @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
 
     serial.init();
-    serial.log("ClashOS 0.0\n");
+    serial.log("ClashOS 0.0\r\n");
+    some_function();
 
     //while (true) {
     //    if (fb_init()) {
