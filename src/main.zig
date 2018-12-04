@@ -59,7 +59,7 @@ export fn kernel_main() noreturn {
     @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
 
     serial.init();
-    serial.log("ClashOS 0.0\r\n");
+    serial.log("ClashOS 0.0\n");
 
     //while (true) {
     //    if (fb_init()) {

@@ -37,6 +37,19 @@ pub fn write(buffer: []const u8) void {
         putc(c);
 }
 
+/// Translates \n into \r\n
+pub fn writeText(buffer: []const u8) void {
+    for (buffer) |c| {
+        switch (c) {
+            '\n' => {
+                putc('\r');
+                putc('\n');
+            },
+            else => putc(c),
+        }
+    }
+}
+
 pub fn init() void {
     mmio.write(AUX_ENABLES, 1);
     mmio.write(AUX_MU_IER_REG, 0);
@@ -67,7 +80,7 @@ pub fn log(comptime format: []const u8, args: ...) void {
     fmt.format({}, NoError, logBytes, format, args) catch |e| switch (e) {};
 }
 fn logBytes(context: void, bytes: []const u8) NoError!void {
-    write(bytes);
+    writeText(bytes);
 }
 
 pub fn dumpMemory(address: usize, size: usize) void {
