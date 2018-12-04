@@ -54,17 +54,12 @@ pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
     debug.wfe_hang();
 }
 
-fn some_function() void {
-    serial.boom();
-}
-
 export fn kernel_main() noreturn {
     // clear .bss
     @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
 
     serial.init();
     serial.log("ClashOS 0.0\r\n");
-    some_function();
 
     //while (true) {
     //    if (fb_init()) {

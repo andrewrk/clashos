@@ -93,8 +93,3 @@ fn delay(count: usize) void {
         asm volatile ("mov w0, w0");
     }
 }
-
-pub fn boom() void {
-    var x: u8 = 255;
-    x += 1;
-}
