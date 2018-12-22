@@ -19,7 +19,28 @@ const source_files = [][]const u8{
     "src/main.zig",
     "src/mmio.zig",
     "src/serial.zig",
+    "src/bootloader.zig",
 };
+
+var already_panicking: bool = false;
+
+pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: ...) noreturn {
+    @setCold(true);
+    if (already_panicking) {
+        serial.write("\npanicked during kernel panic\n");
+        wfe_hang();
+    }
+    already_panicking = true;
+
+    serial.log(fmt ++ "\n", args);
+
+    const first_trace_addr = @ptrToInt(@returnAddress());
+    if (stack_trace) |t| {
+        dumpStackTrace(t);
+    }
+    dumpCurrentStackTrace(first_trace_addr);
+    wfe_hang();
+}
 
 pub fn wfe_hang() noreturn {
     while (true) {
@@ -200,4 +221,3 @@ fn writeStackTrace(stack_trace: *const builtin.StackTrace, dwarf_info: *std.debu
         );
     }
 }
-

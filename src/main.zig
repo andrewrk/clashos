@@ -11,9 +11,11 @@ const debug = @import("debug.zig");
 // could alias any uninitialized global variable in the kernel.
 extern var __bss_start: u8;
 extern var __bss_end: u8;
+extern var __end_init: u8;
 
 comptime {
     // .text.boot to keep this in the first portion of the binary
+    // Note: this code cannot be changed via the bootloader.
     asm volatile (
         \\.section .text.boot
         \\.globl _start
@@ -32,29 +34,11 @@ comptime {
     );
 }
 
-var already_panicking: bool = false;
-
 pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
-    @setCold(true);
-    if (already_panicking) {
-        serial.write("\npanicked during kernel panic\n");
-        debug.wfe_hang();
-    }
-    already_panicking = true;
-
-    serial.write("\n!KERNEL PANIC!\n");
-    serial.write(message);
-    serial.write("\n");
-
-    const first_trace_addr = @ptrToInt(@returnAddress());
-    if (stack_trace) |t| {
-        debug.dumpStackTrace(t);
-    }
-    debug.dumpCurrentStackTrace(first_trace_addr);
-    debug.wfe_hang();
+    debug.panic(stack_trace, "KERNEL PANIC: {}", message);
 }
 
-export fn kernel_main() noreturn {
+export fn kernel_main() linksection(".text.main") noreturn {
     // clear .bss
     @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
 
@@ -73,8 +57,94 @@ export fn kernel_main() noreturn {
 
     //fb_clear(&color_blue);
 
+    serialLoop();
+}
+
+const build_options = @import("build_options");
+const bootloader_code align(@alignOf(std.elf.Elf64_Ehdr)) = @embedFile("../" ++ build_options.bootloader_exe_path);
+
+fn serialLoop() noreturn {
+    const boot_magic = []u8{ 6, 6, 6 };
+    var boot_magic_index: usize = 0;
     while (true) {
-        serial.putc(serial.getc());
+        const byte = serial.readByte();
+        if (byte == boot_magic[boot_magic_index]) {
+            boot_magic_index += 1;
+            if (boot_magic_index != boot_magic.len)
+                continue;
+
+            // It's time to receive the new kernel. First
+            // we skip over the .text.boot bytes, verifying that they
+            // are unchanged.
+            const new_kernel_len = serial.in.readIntLittle(u32) catch unreachable;
+            serial.log("New kernel image detected, {Bi2}\n", new_kernel_len);
+            const text_boot = @intToPtr([*]const u8, 0)[0..@ptrToInt(&__end_init)];
+            for (text_boot) |text_boot_byte, byte_index| {
+                const new_byte = serial.readByte();
+                if (new_byte != text_boot_byte) {
+                    debug.panic(
+                        @errorReturnTrace(),
+                        "new_kernel[{}] expected: 0x{x} actual: 0x{x}",
+                        byte_index,
+                        text_boot_byte,
+                        new_byte,
+                    );
+                }
+            }
+            const start_addr = @ptrToInt(kernel_main);
+            const bytes_left = new_kernel_len - start_addr;
+            var pad = start_addr - text_boot.len;
+            while (pad > 0) : (pad -= 1) {
+                _ = serial.readByte();
+            }
+
+            // Next we copy the bootloader code to the correct memory address,
+            // and then jump to it.
+            // Read the ELF
+            var workaround = ([*]const u8)(&bootloader_code); // TODO remove this
+            const ehdr = @ptrCast(*const std.elf.Elf64_Ehdr, workaround);
+            var phdr_addr = workaround + ehdr.e_phoff;
+            var phdr_i: usize = 0;
+            while (phdr_i < ehdr.e_phnum) : ({
+                phdr_i += 1;
+                phdr_addr += ehdr.e_phentsize;
+            }) {
+                const this_ph = @ptrCast(*const std.elf.Elf64_Phdr, phdr_addr);
+                switch (this_ph.p_type) {
+                    std.elf.PT_LOAD => {
+                        const src_ptr = workaround + this_ph.p_offset;
+                        const src_len = this_ph.p_filesz;
+                        const dest_ptr = @intToPtr([*]u8, this_ph.p_vaddr);
+                        const dest_len = this_ph.p_memsz;
+                        const pad_len = dest_len - src_len;
+                        const copy_len = dest_len - pad_len;
+                        @memcpy(dest_ptr, src_ptr, copy_len);
+                        @memset(dest_ptr + copy_len, 0, pad_len);
+                    },
+                    std.elf.PT_GNU_STACK => {}, // ignore
+                    else => debug.panic(
+                        @errorReturnTrace(),
+                        "unexpected ELF Program Header load type: {}",
+                        this_ph.p_type,
+                    ),
+                }
+            }
+            serial.log("Loading new image...\n");
+            asm volatile (
+                \\mov sp,#0x08000000
+                \\bl bootloader_main
+                            :
+                : [arg0] "{x0}" (start_addr),
+                  [arg1] "{x1}" (bytes_left)
+            );
+            unreachable;
+        }
+        switch (byte) {
+            '\r' => {
+                serial.writeText("\n");
+            },
+            else => serial.writeByte(byte),
+        }
     }
 }
 

@@ -1,4 +1,5 @@
-const fmt = @import("std").fmt;
+const std = @import("std");
+const fmt = std.fmt;
 const mmio = @import("mmio.zig");
 
 pub const GPFSEL1 = 0x3F200004;
@@ -20,13 +21,36 @@ pub const AUX_MU_CNTL_REG = 0x3F215060;
 pub const AUX_MU_STAT_REG = 0x3F215064;
 pub const AUX_MU_BAUD_REG = 0x3F215068;
 
-pub fn putc(byte: u8) void {
+pub const in = &in_stream_state;
+pub const out = &out_stream_state;
+
+const NoError = error{};
+
+var in_stream_state = std.io.InStream(NoError){ .readFn = struct {
+    fn readFn(self: *std.io.InStream(NoError), buffer: []u8) NoError!usize {
+        for (buffer) |*byte| {
+            byte.* = readByte();
+        }
+        return buffer.len;
+    }
+}.readFn };
+
+var out_stream_state = std.io.OutStream(NoError){ .writeFn = struct {
+    fn writeFn(self: *std.io.OutStream(NoError), bytes: []const u8) NoError!void {
+        for (bytes) |byte| {
+            writeByte(byte);
+        }
+        return buffer.len;
+    }
+}.writeFn };
+
+pub fn writeByte(byte: u8) void {
     // Wait for UART to become ready to transmit.
     while ((mmio.read(AUX_MU_LSR_REG) & 0x20) == 0) {}
     mmio.write(AUX_MU_IO_REG, byte);
 }
 
-pub fn getc() u8 {
+pub fn readByte() u8 {
     // Wait for UART to have recieved something.
     while ((mmio.read(AUX_MU_LSR_REG) & 0x01) == 0) {}
     return @truncate(u8, mmio.read(AUX_MU_IO_REG));
@@ -34,7 +58,7 @@ pub fn getc() u8 {
 
 pub fn write(buffer: []const u8) void {
     for (buffer) |c|
-        putc(c);
+        writeByte(c);
 }
 
 /// Translates \n into \r\n
@@ -42,10 +66,10 @@ pub fn writeText(buffer: []const u8) void {
     for (buffer) |c| {
         switch (c) {
             '\n' => {
-                putc('\r');
-                putc('\n');
+                writeByte('\r');
+                writeByte('\n');
             },
-            else => putc(c),
+            else => writeByte(c),
         }
     }
 }
@@ -73,8 +97,6 @@ pub fn init() void {
     mmio.write(GPPUDCLK0, 0);
     mmio.write(AUX_MU_CNTL_REG, 3);
 }
-
-const NoError = error{};
 
 pub fn log(comptime format: []const u8, args: ...) void {
     fmt.format({}, NoError, logBytes, format, args) catch |e| switch (e) {};

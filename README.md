@@ -30,11 +30,23 @@ zig build qemu -Dgdb
 In another terminal:
 
 ```
-gdb zig-cache/clashos-dbg -ex 'run target remote localhost:1234'
+gdb zig-cache/clashos-dbg -ex 'target remote localhost:1234'
 ```
 
-Note: this crashes GDB for me, but it works if I remove the `-ex`
-parameter and execute the command at the prompt.
+### Sending a New Kernel Image via Serial
+
+While the Raspberry Pi is running, you can use
+
+```
+zig build upload -Dtty=/dev/ttyUSB0
+```
+
+If using QEMU, use `zig build qemu -Dpty` and note the tty path.
+In another terminal window, `cat` the tty path.
+In yet another terminal window, you can use the `zig build upload`
+command above, with the tty path provided by QEMU.
+This is compatible with using GDB with QEMU, just make sure to pass
+the `-Dgdb` to both `zig build` commands.
 
 ### Actual Hardware
 
@@ -47,7 +59,6 @@ For further changes repeat steps 3 and 4.
 
 ## Roadmap
 
- * Ability to send a new kernel image via UART
  * Interface with the file system
  * Get rid of dependency on binutils objcopy
  * Interface with the video driver
@@ -70,4 +81,13 @@ Where `/dev/ttyUSB0` is the device that represents the serial-to-USB cable:
 
 ```
 sudo screen /dev/ttyUSB0 115200 cs8
+```
+
+### Memory Layout
+
+```
+0x0000000 (  0 MiB) - boot entry point
+0x0000100           - kernel_main function
+0x8000000 (128 MiB) - top of kernel stack, and bootloader_main function
+0x8800000 (136 MiB) - top of bootloader stack
 ```
