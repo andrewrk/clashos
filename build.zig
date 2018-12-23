@@ -16,6 +16,7 @@ pub fn build(b: *Builder) !void {
     bootloader.setLinkerScriptPath("src/bootloader.ld");
     bootloader.setBuildMode(builtin.Mode.ReleaseSmall);
     bootloader.setTarget(arch, builtin.Os.freestanding, environ);
+    bootloader.strip = true;
 
     const exec_name = if (want_gdb) "clashos-dbg" else "clashos";
     const exe = b.addStaticExecutable(exec_name, "src/main.zig");

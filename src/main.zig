@@ -101,9 +101,9 @@ fn serialLoop() noreturn {
             // Next we copy the bootloader code to the correct memory address,
             // and then jump to it.
             // Read the ELF
-            var workaround = ([*]const u8)(&bootloader_code); // TODO remove this
-            const ehdr = @ptrCast(*const std.elf.Elf64_Ehdr, workaround);
-            var phdr_addr = workaround + ehdr.e_phoff;
+            var bootloader_code_ptr = ([*]const u8)(&bootloader_code); // TODO remove workaround `var`
+            const ehdr = @ptrCast(*const std.elf.Elf64_Ehdr, bootloader_code_ptr);
+            var phdr_addr = bootloader_code_ptr + ehdr.e_phoff;
             var phdr_i: usize = 0;
             while (phdr_i < ehdr.e_phnum) : ({
                 phdr_i += 1;
@@ -112,7 +112,7 @@ fn serialLoop() noreturn {
                 const this_ph = @ptrCast(*const std.elf.Elf64_Phdr, phdr_addr);
                 switch (this_ph.p_type) {
                     std.elf.PT_LOAD => {
-                        const src_ptr = workaround + this_ph.p_offset;
+                        const src_ptr = bootloader_code_ptr + this_ph.p_offset;
                         const src_len = this_ph.p_filesz;
                         const dest_ptr = @intToPtr([*]u8, this_ph.p_vaddr);
                         const dest_len = this_ph.p_memsz;
