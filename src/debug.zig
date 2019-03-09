@@ -34,7 +34,7 @@ pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: 
 
     serial.log(fmt ++ "\n", args);
 
-    const first_trace_addr = @ptrToInt(@returnAddress());
+    const first_trace_addr = @returnAddress();
     if (stack_trace) |t| {
         dumpStackTrace(t);
     }
