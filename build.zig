@@ -7,8 +7,8 @@ pub fn build(b: *Builder) !void {
     const want_gdb = b.option(bool, "gdb", "Build for using gdb with qemu") orelse false;
     const want_pty = b.option(bool, "pty", "Create a separate TTY path") orelse false;
 
-    const arch = builtin.Arch.aarch64v8;
-    const environ = builtin.Environ.eabihf;
+    const arch = builtin.Arch.aarch64;
+    const environ = builtin.Abi.eabihf;
 
     // First we build just the bootloader executable, and then we build the actual kernel
     // which uses @embedFile on the bootloader.
@@ -27,7 +27,8 @@ pub fn build(b: *Builder) !void {
     exe.addBuildOption([]const u8, "bootloader_exe_path", b.fmt("\"{}\"", bootloader.getOutputPath()));
     exe.step.dependOn(&bootloader.step);
 
-    const run_objcopy = b.addCommand(null, b.env_map, [][]const u8{
+    var run_objcopy = exe.run();
+    run_objcopy.addArgs([][]const u8{
         "objcopy", exe.getOutputPath(),
         "-O", "binary",
         "clashos.bin",
@@ -54,7 +55,8 @@ pub fn build(b: *Builder) !void {
     if (want_gdb) {
         try qemu_args.appendSlice([][]const u8{ "-S", "-s" });
     }
-    const run_qemu = b.addCommand(null, b.env_map, qemu_args.toSliceConst());
+    var run_qemu = exe.run();
+    run_qemu.addArgs(qemu_args.toSliceConst());
     qemu.dependOn(&run_qemu.step);
     run_qemu.step.dependOn(&exe.step);
 
@@ -65,7 +67,8 @@ pub fn build(b: *Builder) !void {
     if (b.option([]const u8, "tty", "Specify the TTY to send images to")) |tty_path| {
         try send_img_args.append(tty_path);
     }
-    const run_send_image_tool = b.addCommand(null, b.env_map, send_img_args.toSliceConst());
+    var run_send_image_tool = exe.run();
+    run_send_image_tool.addArgs(send_img_args.toSliceConst());
     run_send_image_tool.step.dependOn(&send_image_tool.step);
 
     const upload = b.step("upload", "Send a new kernel image to a running instance. (See -Dtty option)");
