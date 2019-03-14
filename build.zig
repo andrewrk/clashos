@@ -12,7 +12,7 @@ pub fn build(b: *Builder) !void {
 
     // First we build just the bootloader executable, and then we build the actual kernel
     // which uses @embedFile on the bootloader.
-    const bootloader = b.addStaticExecutable("bootloader", "src/bootloader.zig");
+    const bootloader = b.addExecutable("bootloader", "src/bootloader.zig");
     bootloader.setLinkerScriptPath("src/bootloader.ld");
     bootloader.setBuildMode(builtin.Mode.ReleaseSmall);
     bootloader.setTarget(arch, builtin.Os.freestanding, environ);
@@ -20,7 +20,7 @@ pub fn build(b: *Builder) !void {
     bootloader.setOutputDir("zig-cache");
 
     const exec_name = if (want_gdb) "clashos-dbg" else "clashos";
-    const exe = b.addStaticExecutable(exec_name, "src/main.zig");
+    const exe = b.addExecutable(exec_name, "src/main.zig");
     exe.setOutputDir("zig-cache");
     exe.setBuildMode(mode);
     exe.setTarget(arch, builtin.Os.freestanding, environ);
