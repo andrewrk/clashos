@@ -16,7 +16,7 @@ extern var __end_init: u8;
 comptime {
     // .text.boot to keep this in the first portion of the binary
     // Note: this code cannot be changed via the bootloader.
-    asm volatile (
+    asm (
         \\.section .text.boot
         \\.globl _start
         \\_start:
@@ -78,7 +78,7 @@ fn serialLoop() noreturn {
             // are unchanged.
             const new_kernel_len = serial.in.readIntLittle(u32) catch unreachable;
             serial.log("New kernel image detected, {Bi2}\n", new_kernel_len);
-            const text_boot = @intToPtr([*]const u8, 0)[0..@ptrToInt(&__end_init)];
+            const text_boot = @intToPtr([*]allowzero const u8, 0)[0..@ptrToInt(&__end_init)];
             for (text_boot) |text_boot_byte, byte_index| {
                 const new_byte = serial.readByte();
                 if (new_byte != text_boot_byte) {
