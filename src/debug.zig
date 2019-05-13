@@ -68,7 +68,7 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
         var self_debug_info: std.debug.DwarfInfo = undefined;
 
         var in_stream_state = std.io.InStream(anyerror){ .readFn = readFn };
-        var in_stream_pos: usize = 0;
+        var in_stream_pos: u64 = 0;
         const in_stream = &in_stream_state;
 
         fn readFn(self: *std.io.InStream(anyerror), buffer: []u8) anyerror!usize {
@@ -88,17 +88,17 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
         };
         const seekable_stream = &seekable_stream_state;
 
-        fn seekToFn(self: *SeekableStream, pos: usize) anyerror!void {
+        fn seekToFn(self: *SeekableStream, pos: u64) anyerror!void {
             in_stream_pos = pos;
         }
-        fn seekForwardFn(self: *SeekableStream, pos: isize) anyerror!void {
+        fn seekForwardFn(self: *SeekableStream, pos: i64) anyerror!void {
             in_stream_pos = @bitCast(usize, @bitCast(isize, in_stream_pos) +% pos);
         }
-        fn getPosFn(self: *SeekableStream) anyerror!usize {
+        fn getPosFn(self: *SeekableStream) anyerror!u64 {
             return in_stream_pos;
         }
-        fn getEndPosFn(self: *SeekableStream) anyerror!usize {
-            return @ptrToInt(&__debug_ranges_end);
+        fn getEndPosFn(self: *SeekableStream) anyerror!u64 {
+            return u64(@ptrToInt(&__debug_ranges_end));
         }
     };
     if (S.have_self_debug_info) return &S.self_debug_info;
@@ -114,16 +114,19 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
         .debug_ranges = dwarfSectionFromSymbolAbs(&__debug_ranges_start, &__debug_ranges_end),
         .abbrev_table_list = undefined,
         .compile_unit_list = undefined,
+        .func_list = undefined,
     };
     try std.debug.openDwarfDebugInfo(&S.self_debug_info, kernel_panic_allocator);
     return &S.self_debug_info;
 }
 
-var serial_out_stream_state = std.io.OutStream(anyerror){ .writeFn = struct {
-    fn logWithSerial(self: *std.io.OutStream(anyerror), bytes: []const u8) anyerror!void {
-        serial.log("{}", bytes);
-    }
-}.logWithSerial };
+var serial_out_stream_state = std.io.OutStream(anyerror){
+    .writeFn = struct {
+        fn logWithSerial(self: *std.io.OutStream(anyerror), bytes: []const u8) anyerror!void {
+            serial.log("{}", bytes);
+        }
+    }.logWithSerial,
+};
 const serial_out_stream = &serial_out_stream_state;
 var kernel_panic_allocator_bytes: [100 * 1024]u8 = undefined;
 var kernel_panic_allocator_state = std.heap.FixedBufferAllocator.init(kernel_panic_allocator_bytes[0..]);
