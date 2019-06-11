@@ -64,7 +64,7 @@ const build_options = @import("build_options");
 const bootloader_code align(@alignOf(std.elf.Elf64_Ehdr)) = @embedFile("../" ++ build_options.bootloader_exe_path);
 
 fn serialLoop() noreturn {
-    const boot_magic = []u8{ 6, 6, 6 };
+    const boot_magic = [_]u8{ 6, 6, 6 };
     var boot_magic_index: usize = 0;
     while (true) {
         const byte = serial.readByte();
@@ -133,7 +133,7 @@ fn serialLoop() noreturn {
             asm volatile (
                 \\mov sp,#0x08000000
                 \\bl bootloader_main
-                            :
+                :
                 : [arg0] "{x0}" (start_addr),
                   [arg1] "{x1}" (bytes_left)
             );

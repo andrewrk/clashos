@@ -14,7 +14,7 @@ extern var __debug_line_end: u8;
 extern var __debug_ranges_start: u8;
 extern var __debug_ranges_end: u8;
 
-const source_files = [][]const u8{
+const source_files = [_][]const u8{
     "src/debug.zig",
     "src/main.zig",
     "src/mmio.zig",
@@ -81,7 +81,7 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
         const SeekableStream = std.io.SeekableStream(anyerror, anyerror);
         var seekable_stream_state = SeekableStream{
             .seekToFn = seekToFn,
-            .seekForwardFn = seekForwardFn,
+            .seekByFn = seekByFn,
 
             .getPosFn = getPosFn,
             .getEndPosFn = getEndPosFn,
@@ -91,7 +91,7 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
         fn seekToFn(self: *SeekableStream, pos: u64) anyerror!void {
             in_stream_pos = pos;
         }
-        fn seekForwardFn(self: *SeekableStream, pos: i64) anyerror!void {
+        fn seekByFn(self: *SeekableStream, pos: i64) anyerror!void {
             in_stream_pos = @bitCast(usize, @bitCast(isize, in_stream_pos) +% pos);
         }
         fn getPosFn(self: *SeekableStream) anyerror!u64 {

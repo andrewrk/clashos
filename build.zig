@@ -29,9 +29,9 @@ pub fn build(b: *Builder) !void {
     exe.addBuildOption([]const u8, "bootloader_exe_path", b.fmt("\"{}\"", bootloader.getOutputPath()));
     exe.step.dependOn(&bootloader.step);
 
-    const run_objcopy = b.addSystemCommand([][]const u8{
-        "objcopy", exe.getOutputPath(),
-        "-O", "binary",
+    const run_objcopy = b.addSystemCommand([_][]const u8{
+        "objcopy",     exe.getOutputPath(),
+        "-O",          "binary",
         "clashos.bin",
     });
     run_objcopy.step.dependOn(&exe.step);
@@ -40,7 +40,7 @@ pub fn build(b: *Builder) !void {
 
     const qemu = b.step("qemu", "Run the OS in qemu");
     var qemu_args = std.ArrayList([]const u8).init(b.allocator);
-    try qemu_args.appendSlice([][]const u8{
+    try qemu_args.appendSlice([_][]const u8{
         "qemu-system-aarch64",
         "-kernel",
         exe.getOutputPath(),
@@ -54,7 +54,7 @@ pub fn build(b: *Builder) !void {
         if (want_pty) "pty" else "stdio",
     });
     if (want_gdb) {
-        try qemu_args.appendSlice([][]const u8{ "-S", "-s" });
+        try qemu_args.appendSlice([_][]const u8{ "-S", "-s" });
     }
     const run_qemu = b.addSystemCommand(qemu_args.toSliceConst());
     qemu.dependOn(&run_qemu.step);
