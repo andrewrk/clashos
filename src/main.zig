@@ -44,7 +44,9 @@ export fn kernel_main() linksection(".text.main") noreturn {
     serial.init();
     serial.log("ClashOS 0.0\n");
 
-    cntfrq = asm("mrs %[cntfrq], cntfrq_el0" : [cntfrq] "=r" (-> usize));
+    cntfrq = asm ("mrs %[cntfrq], cntfrq_el0"
+        : [cntfrq] "=r" (-> usize)
+    );
     cntfrq_f32 = @intToFloat(f32, cntfrq);
 
     updateTime();
@@ -97,7 +99,7 @@ fn serialLoop() noreturn {
             // we skip over the .text.boot bytes, verifying that they
             // are unchanged.
             const new_kernel_len = serial.in.readIntLittle(u32) catch unreachable;
-            serial.log("New kernel image detected, {Bi2}\n", new_kernel_len);
+            serial.log("New kernel image detected, {Bi:2}\n", new_kernel_len);
             const text_boot = @intToPtr([*]allowzero const u8, 0)[0..@ptrToInt(&__end_init)];
             for (text_boot) |text_boot_byte, byte_index| {
                 const new_byte = serial.readByte();
@@ -173,8 +175,10 @@ var cntfrq_f32: f32 = undefined;
 var cntpct: usize = undefined;
 var seconds: f32 = undefined;
 
-fn updateTime () void {
-    cntpct = asm("mrs %[cntpct], cntpct_el0" : [cntpct] "=r" (-> usize));
+fn updateTime() void {
+    cntpct = asm ("mrs %[cntpct], cntpct_el0"
+        : [cntpct] "=r" (-> usize)
+    );
     seconds = @intToFloat(f32, cntpct) / cntfrq_f32;
     serial.log("time {}\n", seconds);
 }
