@@ -105,7 +105,7 @@ pub fn init() void {
 }
 
 pub fn log(comptime format: []const u8, args: ...) void {
-    fmt.format({}, NoError, logBytes, format, args) catch |e| switch (e) {};
+    fmt.format({}, NoError, logBytes, format ++ "\n", args) catch |e| switch (e) {};
 }
 
 fn logBytes(context: void, bytes: []const u8) NoError!void {

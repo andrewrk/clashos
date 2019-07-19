@@ -15,24 +15,26 @@ pub fn of(comptime T: type) type {
             self.index = 0;
         }
 
-        fn add(self: *Self, item: T) !void {
-            try self.advance();
+        fn add(self: *Self, item: T) void {
+            self.advance();
             self.data[self.index - 1] = item;
         }
 
-        fn next(self: *Self) !u32 {
-            try self.advance();
+        fn next(self: *Self) u32 {
+            self.advance();
             return self.data[self.index - 1];
         }
 
-        fn advance(self: *Self) !void {
+        fn advance(self: *Self) void {
             if (self.index < self.data.len) {
                 self.index += 1;
             } else {
-                return error.BufferExhausted;
+                panic(@errorReturnTrace(), "BufferExhausted");
             }
         }
     };
 
     return Iterator;
 }
+
+const panic = @import("debug.zig").panic;
