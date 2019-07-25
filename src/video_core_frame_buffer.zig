@@ -6,40 +6,41 @@ pub const FrameBuffer = struct {
     physical_height: u32,
     pitch: u32,
     pixel_order: u32,
-    ptr: [*]volatile u8,
+    bytes: [*]volatile u8,
     size: u32,
     virtual_height: u32,
     virtual_width: u32,
     virtual_offset_x: u32,
     virtual_offset_y: u32,
+    overscan_top: u32,
+    overscan_bottom: u32,
+    overscan_left: u32,
+    overscan_right: u32,
 
-    fn clear(fb: FrameBuffer, color: *const Color) void {
-        var y: usize = 0;
+    fn clear(fb: *FrameBuffer, color: Color) void {
+        var y: u32 = 0;
         while (y < fb.virtual_height) : (y += 1) {
-            var x: usize = 0;
+            var x: u32 = 0;
             while (x < fb.virtual_width) : (x += 1) {
-                const offset = y * fb.pitch + x * 4;
-                fb.ptr[offset] = color.red;
-                fb.ptr[offset + 1] = color.green;
-                fb.ptr[offset + 2] = color.blue;
-                fb.ptr[offset + 3] = color.alpha;
+                fb.drawPixel(x, y, color);
             }
         }
     }
 
-    fn drawPixel(fb: *FrameBuffer, x: usize, y: usize, color: Color) void {
+    fn drawPixel(fb: *FrameBuffer, x: u32, y: u32, color: Color) void {
         if (x >= fb.virtual_width or y >= fb.virtual_height) {
-            panic(@errorReturnTrace(), "frame buffer bounds");
+            panic(@errorReturnTrace(), "frame buffer index {}, {} does not fit in {}x{}", x, y, fb.virtual_width, fb.virtual_height);
         }
         const offset = y * fb.pitch + x * 4;
-        fb.ptr[offset] = color.red;
-        fb.ptr[offset + 1] = color.green;
-        fb.ptr[offset + 2] = color.blue;
-        fb.ptr[offset + 3] = color.alpha;
+        fb.bytes[offset + 0] = color.blue;
+        fb.bytes[offset + 1] = color.green;
+        fb.bytes[offset + 2] = color.red;
+        fb.bytes[offset + 3] = @intCast(u8, 255 - @intCast(i32, color.alpha));
     }
 
-    pub fn init(width: u32, height: u32) !FrameBuffer {
-        var fb: FrameBuffer = undefined;
+    pub fn init(fb: *FrameBuffer) void {
+        const width: u32 = 1920;
+        const height: u32 = 1080;
         fb.alignment = 256;
         fb.physical_width = width;
         fb.physical_height = height;
@@ -48,14 +49,14 @@ pub const FrameBuffer = struct {
         fb.virtual_offset_x = 0;
         fb.virtual_offset_y = 0;
         fb.depth = 32;
-        fb.pixel_order = 1;
-        fb.alpha_mode = 1;
+        fb.pixel_order = 0;
+        fb.alpha_mode = 0;
 
-        try callVideoCoreProperties(&[_]PropertiesStep{
+        callVideoCoreProperties(&[_]PropertiesArg{
             tag(TAG_ALLOCATE_FRAME_BUFFER, 8),
             in(&fb.alignment),
-            get(@ptrCast(*u32, &fb.ptr)),
-            get(&fb.size),
+            out(@ptrCast(*u32, &fb.bytes)),
+            out(&fb.size),
             tag(TAG_SET_DEPTH, 4),
             set(&fb.depth),
             tag(TAG_SET_PHYSICAL_WIDTH_HEIGHT, 8),
@@ -72,17 +73,70 @@ pub const FrameBuffer = struct {
             tag(TAG_SET_ALPHA_MODE, 4),
             set(&fb.alpha_mode),
             tag(TAG_GET_PITCH, 4),
-            get(&fb.pitch),
+            out(&fb.pitch),
+            tag(TAG_GET_OVERSCAN, 16),
+            out(&fb.overscan_top),
+            out(&fb.overscan_bottom),
+            out(&fb.overscan_left),
+            out(&fb.overscan_right),
             lastTagSentinel(),
         });
 
-        fb.ptr = @intToPtr([*]volatile u8, @ptrToInt(fb.ptr) & 0x3FFFFFFF);
-        return fb;
+        fb.bytes = @intToPtr([*]volatile u8, @ptrToInt(fb.bytes) & 0x3FFFFFFF);
+//      log("fb align {} addr {x} alpha {} pitch {} order {} size {} physical {}x{} virtual {}x{} offset {},{} overscan t {} b {} l {} r {}", fb.alignment, @ptrToInt(fb.bytes), fb.alpha_mode, fb.pitch, fb.pixel_order, fb.size, fb.physical_width, fb.physical_height, fb.virtual_width, fb.virtual_height, fb.virtual_offset_x, fb.virtual_offset_y, fb.overscan_top, fb.overscan_bottom, fb.overscan_left, fb.overscan_right);
+        if (@ptrToInt(fb.bytes) == 0) {
+            panic(@errorReturnTrace(), "frame buffer pointer is zero");
+        }
+    }
+};
+
+pub const Bitmap = struct {
+    frame_buffer: *FrameBuffer,
+    pixel_array: [*]u8,
+    width: u32,
+    height: u32,
+
+    fn getU32(base: [*]u8, offset: u32) u32 {
+        var word: u32 =0;
+        var i: u32 = 0;
+        while (i <= 3) : (i += 1) {
+            word >>= 8;
+            word |= @intCast(u32, @intToPtr(*u8, @ptrToInt(base) + offset + i).*) << 24;
+        }
+        return word;
+    }
+
+    pub fn init(self: *Bitmap, frame_buffer: *FrameBuffer, file: []u8) void {
+        self.frame_buffer = frame_buffer;
+        self.pixel_array = @intToPtr([*]u8, @ptrToInt(file.ptr) + getU32(file.ptr, 0x0A));
+        self.width = getU32(file.ptr, 0x12);
+        self.height = getU32(file.ptr, 0x16);
+    }
+
+    fn getPixel(self: *Bitmap, x: u32, y: u32) Color {
+        const rgba = getU32(self.pixel_array, ((self.height - 1 - y) * self.width + x) * @sizeOf(u32));
+        return Color{
+            .red = @intCast(u8, (rgba >> 16) & 0xff),
+            .green = @intCast(u8, (rgba >> 8) & 0xff),
+            .blue = @intCast(u8, (rgba >> 0) & 0xff),
+            .alpha = @intCast(u8, (rgba >> 24) & 0xff),
+        };
+    }
+
+    fn drawRect(self: *Bitmap, width: u32, height: u32, x1: u32, y1: u32, x2: u32, y2: u32) void {
+        var y: u32 = 0;
+        while( y < height) : (y += 1) {
+            var x: u32 = 0;
+            while (x < width) : (x += 1) {
+                self.frame_buffer.drawPixel(x + x2, y + y2, self.getPixel(x + x1, y + y1));
+            }
+        }
     }
 };
 
 const TAG_ALLOCATE_FRAME_BUFFER = 0x40001;
 
+const TAG_GET_OVERSCAN = 0x4000A;
 const TAG_GET_PITCH = 0x40008;
 
 const TAG_SET_ALPHA_MODE = 0x48007;
@@ -99,5 +153,8 @@ pub const Color = struct {
     alpha: u8,
 };
 
+const log = @import("serial.zig").log;
+const Metrics = @import("video_core_metrics.zig").Metrics;
 const panic = @import("debug.zig").panic;
+const time = @import("time.zig");
 use @import("video_core_properties.zig");

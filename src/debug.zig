@@ -27,18 +27,19 @@ var already_panicking: bool = false;
 pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: ...) noreturn {
     @setCold(true);
     if (already_panicking) {
-        serial.write("\npanicked during kernel panic\n");
+        serial.log("\npanicked during kernel panic");
         wfe_hang();
     }
     already_panicking = true;
 
-    serial.log(fmt ++ "\n", args);
+    serial.log("panic: " ++ fmt, args);
 
     const first_trace_addr = @returnAddress();
     if (stack_trace) |t| {
         dumpStackTrace(t);
     }
     dumpCurrentStackTrace(first_trace_addr);
+    serial.log("panic completed");
     wfe_hang();
 }
 
@@ -123,7 +124,7 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
 var serial_out_stream_state = std.io.OutStream(anyerror){
     .writeFn = struct {
         fn logWithSerial(self: *std.io.OutStream(anyerror), bytes: []const u8) anyerror!void {
-            serial.log("{}", bytes);
+            serial.writeText(bytes);
         }
     }.logWithSerial,
 };
@@ -134,22 +135,22 @@ const kernel_panic_allocator = &kernel_panic_allocator_state.allocator;
 
 pub fn dumpStackTrace(stack_trace: *const builtin.StackTrace) void {
     const dwarf_info = getSelfDebugInfo() catch |err| {
-        serial.log("Unable to dump stack trace: Unable to open debug info: {}\n", @errorName(err));
+        serial.log("Unable to dump stack trace: Unable to open debug info: {}", @errorName(err));
         return;
     };
     writeStackTrace(stack_trace, dwarf_info) catch |err| {
-        serial.log("Unable to dump stack trace: {}\n", @errorName(err));
+        serial.log("Unable to dump stack trace: {}", @errorName(err));
         return;
     };
 }
 
 pub fn dumpCurrentStackTrace(start_addr: ?usize) void {
     const dwarf_info = getSelfDebugInfo() catch |err| {
-        serial.log("Unable to dump stack trace: Unable to open debug info: {}\n", @errorName(err));
+        serial.log("Unable to dump stack trace: Unable to open debug info: {}", @errorName(err));
         return;
     };
     writeCurrentStackTrace(dwarf_info, start_addr) catch |err| {
-        serial.log("Unable to dump stack trace: {}\n", @errorName(err));
+        serial.log("Unable to dump stack trace: {}", @errorName(err));
         return;
     };
 }

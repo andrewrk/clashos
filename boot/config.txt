@@ -7,3 +7,4 @@ dtparam=audio=on
 arm_control=0x200
 disable_splash=1
 boot_delay=0
+cec_osd_name=Zig!

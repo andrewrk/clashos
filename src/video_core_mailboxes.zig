@@ -12,7 +12,7 @@ const Mailbox = packed struct {
 
     fn init(index: u32) *Mailbox {
         if (index > 1) {
-            panic(@errorReturnTrace(), "mailbox index");
+            panic(@errorReturnTrace(), "mailbox index {} exceeds 1", index);
         }
         const PERIPHERAL_BASE = 0x3F000000;
         const MAILBOXES_OFFSET = 0xB880;
@@ -21,28 +21,16 @@ const Mailbox = packed struct {
     }
 
     fn pushRequestBlocking(this: *Mailbox, request: u32) void {
-        while (this.isFull()) {
-        }
+        blockWhile(this, isFull);
         this.push(request);
     }
 
-    fn pullResponseBlocking(this: *Mailbox, request: u32) !void {
-        while (this.isEmpty()) {
-        }
+    fn pullResponseBlocking(this: *Mailbox, request: u32) void {
+        blockWhile(this, isEmpty);
         const response = this.pull();
         if (response != request) {
-            return error.UnexpectedBufferAddressOrChannel;
+            panic(@errorReturnTrace(), "UnexpectedBufferAddressOrChannel");
         }
-    }
-
-    fn isEmpty(this: *Mailbox) bool {
-        const MAILBOX_IS_EMPTY = 0x40000000;
-        return this.status() & MAILBOX_IS_EMPTY != 0;
-    }
-
-    fn isFull(this: *Mailbox) bool {
-        const MAILBOX_IS_FULL = 0x80000000;
-        return this.status() & MAILBOX_IS_FULL != 0;
     }
 
     fn push(this: *Mailbox, word: u32) void {
@@ -56,9 +44,31 @@ const Mailbox = packed struct {
     fn status(this: *Mailbox) u32 {
         return mmio.read(@ptrToInt(&this.status_register));
     }
+
+    fn blockWhile(this: *Mailbox, conditionFn: fn(*Mailbox) bool) void {
+        time.update();
+        const start = time.seconds;
+        while (conditionFn(this)) {
+            time.update();
+            if (time.seconds - start >= 0.1) {
+                panic(@errorReturnTrace(), "time out waiting for video core mailbox");
+            }
+        }
+    }
 };
+
+fn isFull(this: *Mailbox) bool {
+    const MAILBOX_IS_FULL = 0x80000000;
+    return this.status() & MAILBOX_IS_FULL != 0;
+}
+
+fn isEmpty(this: *Mailbox) bool {
+    const MAILBOX_IS_EMPTY = 0x40000000;
+    return this.status() & MAILBOX_IS_EMPTY != 0;
+}
 
 const assert = std.debug.assert;
 const mmio = @import("mmio.zig");
 const panic = @import("debug.zig").panic;
 const std = @import("std");
+const time = @import("time.zig");
