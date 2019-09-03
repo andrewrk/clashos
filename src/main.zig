@@ -1,8 +1,11 @@
+const builtin = @import("builtin");
 const Bitmap = @import("video_core_frame_buffer.zig").Bitmap;
 const Color = @import("video_core_frame_buffer.zig").Color;
+const debug_panic = @import("debug.zig").panic;
 const FrameBuffer = @import("video_core_frame_buffer.zig").FrameBuffer;
-const panic = @import("debug.zig").panic;
+const Metrics = @import("video_core_metrics.zig").Metrics;
 const serial = @import("serial.zig");
+const time = @import("time.zig");
 const std = @import("std");
 
 // The linker will make the address of these global variables equal
@@ -30,7 +33,7 @@ comptime {
         \\ msr vbar_el3,x0
         \\ msr vbar_el2,x0
         \\ msr vbar_el1,x0
-        \\ bl kernel_main
+        \\ bl kernelMainAt0x1100
         \\hang:
         \\ wfe
         \\ b hang
@@ -75,6 +78,12 @@ export fn shortExceptionHandlerAt0x1000() linksection(".text.exception") void {
     exceptionHandler();
 }
 
+pub fn panic(message: []const u8, trace: ?*builtin.StackTrace) noreturn {
+    serial.log("\nmain.zig pub fn panic() {}", message);
+    while (true) {
+    }
+}
+
 fn exceptionHandler() void {
     serial.log("arm exception taken");
     var current_el = asm("mrs %[current_el], CurrentEL"
@@ -98,47 +107,63 @@ fn exceptionHandler() void {
     }
 }
 
-export fn kernel_main() linksection(".text.main") noreturn {
+export fn kernelMainAt0x1100() linksection(".text.main") noreturn {
     // clear .bss
     @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
 
     serial.init();
     serial.log("\n{} {} ...", name, version);
 
-    fb.init();
-    icon.init(&fb, &icon_bmp_file);
+    time.init();
+    metrics.init();
+
+    fb.init(&metrics);
+    icon.init(&fb, &logo_bmp_file);
     logo.init(&fb, &logo_bmp_file);
     logo.drawRect(logo.width, logo.height, 0, 0, 0, 0);
 
-    serial_activity.init();
     screen_activity.init();
+    serial_activity.init();
 
-    serial.log("now echoing input on uart0 ...");
     while (true) {
-        serial_activity.update();
         screen_activity.update();
+        serial_activity.update();
     }
 }
 
 const ScreenActivity = struct {
     height: u32,
     color: Color,
+    color32: u32,
     top: u32,
     x: u32,
     y: u32,
+    ref_seconds: f32,
+    pixel_counter: u32,
 
     fn init(self: *ScreenActivity) void {
         self.color = color_yellow;
-        self.height = 500;
+        self.color32 = fb.color32(self.color);
+        self.height = logo.height;
         self.top = logo.height + margin;
         self.x = 0;
         self.y = self.top;
+        time.update();
+        self.ref_seconds = time.seconds;
+        self.pixel_counter = 0;
     }
 
     fn update (self: *ScreenActivity) void {
-        fb.drawPixel(self.x, self.y, self.color);
+        fb.drawPixel32(self.x, self.y, self.color32);
         self.x += 1;
-        if (self.x == fb.virtual_width) {
+        self.pixel_counter += 1;
+        if (self.x == logo.width) {
+            time.update();
+            if (time.seconds >= self.ref_seconds + 1.0) {
+//              serial.log("{} pixels per second", self.pixel_counter);
+                self.pixel_counter = 0;
+                self.ref_seconds += 1.0;
+            }
             self.x = 0;
             self.y += 1;
             if (self.y == self.top + self.height) {
@@ -152,6 +177,7 @@ const ScreenActivity = struct {
                     self.color.blue = self.color.blue +% delta;
                 }
             }
+            self.color32 = fb.color32(self.color);
         }
     }
 };
@@ -161,6 +187,7 @@ const SerialActivity = struct {
 
     fn init(self: *SerialActivity) void {
         self.boot_magic_index = 0;
+        serial.log("now echoing input on uart1 ...");
     }
 
     fn update(self: *SerialActivity) void {
@@ -183,7 +210,7 @@ const SerialActivity = struct {
             for (text_boot) |text_boot_byte, byte_index| {
                 const new_byte = serial.readByte();
                 if (new_byte != text_boot_byte) {
-                    panic(
+                    debug_panic(
                         @errorReturnTrace(),
                         "new_kernel[{}] expected: 0x{x} actual: 0x{x}",
                         byte_index,
@@ -192,7 +219,7 @@ const SerialActivity = struct {
                     );
                 }
             }
-            const start_addr = @ptrToInt(kernel_main);
+            const start_addr = @ptrToInt(shortExceptionHandlerAt0x1000);
             const bytes_left = new_kernel_len - start_addr;
             var pad = start_addr - text_boot.len;
             while (pad > 0) : (pad -= 1) {
@@ -223,7 +250,7 @@ const SerialActivity = struct {
                         @memset(dest_ptr + copy_len, 0, pad_len);
                     },
                     std.elf.PT_GNU_STACK => {}, // ignore
-                    else => panic(
+                    else => debug_panic(
                         @errorReturnTrace(),
                         "unexpected ELF Program Header load type: {}",
                         this_ph.p_type,
@@ -252,9 +279,10 @@ const SerialActivity = struct {
 const build_options = @import("build_options");
 const bootloader_code align(@alignOf(std.elf.Elf64_Ehdr)) = @embedFile("../" ++ build_options.bootloader_exe_path);
 
-var serial_activity: SerialActivity = undefined;
 var screen_activity: ScreenActivity = undefined;
+var serial_activity: SerialActivity = undefined;
 var fb: FrameBuffer = undefined;
+var metrics: Metrics = undefined;
 var icon: Bitmap = undefined;
 var logo: Bitmap = undefined;
 
@@ -270,4 +298,4 @@ const color_yellow = Color{ .red = 255, .green = 255, .blue = 0, .alpha = 255 };
 const color_white = Color{ .red = 255, .green = 255, .blue = 255, .alpha = 255 };
 
 const name = "ClashOS";
-const version = "0.0";
+const version = "0.2";

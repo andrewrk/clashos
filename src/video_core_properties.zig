@@ -3,7 +3,7 @@ pub fn callVideoCoreProperties(args: []PropertiesArg) void {
         panic(@errorReturnTrace(), "video core mailbox buffer missing last tag sentinel");
     }
 
-    var words: [512]u32 align(16) = undefined;
+    var words: [1024]u32 align(16) = undefined;
     var buf = SliceIterator.of(u32).init(&words);
 
     var buffer_length_in_bytes: u32 = 0;
@@ -123,8 +123,7 @@ fn check(buf: *SliceIterator.of(u32), word: u32) void {
     }
 }
 
-const assert = std.debug.assert;
-//const log = @import("serial.zig").log;
+const log = @import("serial.zig").log;
 const mailboxes = @import("video_core_mailboxes.zig").mailboxes;
 const panic = @import("debug.zig").panic;
 const SliceIterator = @import("slice_iterator.zig");

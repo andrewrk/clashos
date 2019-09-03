@@ -29,11 +29,12 @@ const Mailbox = packed struct {
         blockWhile(this, isEmpty);
         const response = this.pull();
         if (response != request) {
-            panic(@errorReturnTrace(), "UnexpectedBufferAddressOrChannel");
+            panic(@errorReturnTrace(), "buffer address and channel response was {x} expecting {x}", response, request);
         }
     }
 
     fn push(this: *Mailbox, word: u32) void {
+        mmio.dsb();
         mmio.write(@ptrToInt(&this.push_pull_register), word);
     }
 

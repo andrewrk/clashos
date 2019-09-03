@@ -10,6 +10,10 @@ pub fn read(reg: usize) u32 {
     return @intToPtr(*volatile u32, reg).*;
 }
 
+pub fn dsb() void {
+    asm volatile ("dsb st");
+}
+
 pub fn bigTimeExtraMemoryBarrier() void {
     asm volatile (
         \\ mcr    p15, 0, ip, c7, c5, 0        @ invalidate I cache
