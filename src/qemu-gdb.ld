@@ -6,7 +6,7 @@ SECTIONS {
     .text : ALIGN(4K) {
         KEEP(*(.text.boot))
         __end_init = .;
-        . = 0x100; /* Must match address from bootloader.ld */
+        . = 0x1000; /* Must match address from bootloader.ld */
         KEEP(*(.text.main))
         *(.text)
     }

@@ -87,7 +87,8 @@ sudo screen /dev/ttyUSB0 115200 cs8
 
 ```
 0x0000000 (  0 MiB) - boot entry point
-0x0000100           - kernel_main function
+0x0001000           - shortExceptionHandlerAt0x1000 function
+0x0001100           - kernelMainAt0x1100 function
 0x8000000 (128 MiB) - top of kernel stack, and bootloader_main function
 0x8800000 (136 MiB) - top of bootloader stack
 ```

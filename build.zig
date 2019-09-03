@@ -6,6 +6,7 @@ pub fn build(b: *Builder) !void {
     const mode = b.standardReleaseOptions();
     const want_gdb = b.option(bool, "gdb", "Build for using gdb with qemu") orelse false;
     const want_pty = b.option(bool, "pty", "Create a separate TTY path") orelse false;
+    const want_nodisplay = b.option(bool, "nodisplay", "No display for qemu") orelse false;
 
     const arch = builtin.Arch{ .aarch64 = builtin.Arch.Arm64.v8 };
     const environ = builtin.Abi.eabihf;
@@ -52,6 +53,8 @@ pub fn build(b: *Builder) !void {
         "null",
         "-serial",
         if (want_pty) "pty" else "stdio",
+        "-display",
+        if (want_nodisplay) "none" else "gtk",
     });
     if (want_gdb) {
         try qemu_args.appendSlice([_][]const u8{ "-S", "-s" });

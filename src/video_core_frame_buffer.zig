@@ -6,7 +6,8 @@ pub const FrameBuffer = struct {
     physical_height: u32,
     pitch: u32,
     pixel_order: u32,
-    bytes: [*]volatile u8,
+    bytes: [*]u8,
+    words: [*]u32,
     size: u32,
     virtual_height: u32,
     virtual_width: u32,
@@ -38,9 +39,27 @@ pub const FrameBuffer = struct {
         fb.bytes[offset + 3] = @intCast(u8, 255 - @intCast(i32, color.alpha));
     }
 
-    pub fn init(fb: *FrameBuffer) void {
-        const width: u32 = 1920;
-        const height: u32 = 1080;
+    fn color32(fb: *FrameBuffer, color: Color) u32 {
+        return (255 - @intCast(u32, color.alpha) << 24) | @intCast(u32, color.red) << 16 | @intCast(u32, color.green) << 8 | @intCast(u32, color.blue) << 0;
+    }
+
+    fn drawPixel32(fb: *FrameBuffer, x: u32, y: u32, color: u32) void {
+        if (x >= fb.virtual_width or y >= fb.virtual_height) {
+            panic(@errorReturnTrace(), "frame buffer index {}, {} does not fit in {}x{}", x, y, fb.virtual_width, fb.virtual_height);
+        }
+        fb.words[y * fb.pitch / 4 + x] = color;
+    }
+
+    pub fn init(fb: *FrameBuffer, metrics: *Metrics) void {
+        var width: u32 = undefined;
+        var height: u32 = undefined;
+        if (metrics.is_qemu) {
+            width = 1024;
+            height = 768;
+        } else {
+            width = 1920;
+            height = 1080;
+        }
         fb.alignment = 256;
         fb.physical_width = width;
         fb.physical_height = height;
@@ -82,8 +101,9 @@ pub const FrameBuffer = struct {
             lastTagSentinel(),
         });
 
-        fb.bytes = @intToPtr([*]volatile u8, @ptrToInt(fb.bytes) & 0x3FFFFFFF);
-//      log("fb align {} addr {x} alpha {} pitch {} order {} size {} physical {}x{} virtual {}x{} offset {},{} overscan t {} b {} l {} r {}", fb.alignment, @ptrToInt(fb.bytes), fb.alpha_mode, fb.pitch, fb.pixel_order, fb.size, fb.physical_width, fb.physical_height, fb.virtual_width, fb.virtual_height, fb.virtual_offset_x, fb.virtual_offset_y, fb.overscan_top, fb.overscan_bottom, fb.overscan_left, fb.overscan_right);
+        fb.bytes = @intToPtr([*]u8, @ptrToInt(fb.bytes) & 0x3FFFFFFF);
+        fb.words = @intToPtr([*]u32, @ptrToInt(fb.bytes));
+        log("fb align {} addr {x} alpha {} pitch {} order {} size {} physical {}x{} virtual {}x{} offset {},{} overscan t {} b {} l {} r {}", fb.alignment, @ptrToInt(fb.bytes), fb.alpha_mode, fb.pitch, fb.pixel_order, fb.size, fb.physical_width, fb.physical_height, fb.virtual_width, fb.virtual_height, fb.virtual_offset_x, fb.virtual_offset_y, fb.overscan_top, fb.overscan_bottom, fb.overscan_left, fb.overscan_right);
         if (@ptrToInt(fb.bytes) == 0) {
             panic(@errorReturnTrace(), "frame buffer pointer is zero");
         }
@@ -106,11 +126,11 @@ pub const Bitmap = struct {
         return word;
     }
 
-    pub fn init(self: *Bitmap, frame_buffer: *FrameBuffer, file: []u8) void {
-        self.frame_buffer = frame_buffer;
-        self.pixel_array = @intToPtr([*]u8, @ptrToInt(file.ptr) + getU32(file.ptr, 0x0A));
-        self.width = getU32(file.ptr, 0x12);
-        self.height = getU32(file.ptr, 0x16);
+    pub fn init(bitmap: *Bitmap, frame_buffer: *FrameBuffer, file: []u8) void {
+        bitmap.frame_buffer = frame_buffer;
+        bitmap.pixel_array = @intToPtr([*]u8, @ptrToInt(file.ptr) + getU32(file.ptr, 0x0A));
+        bitmap.width = getU32(file.ptr, 0x12);
+        bitmap.height = getU32(file.ptr, 0x16);
     }
 
     fn getPixel(self: *Bitmap, x: u32, y: u32) Color {
@@ -156,5 +176,4 @@ pub const Color = struct {
 const log = @import("serial.zig").log;
 const Metrics = @import("video_core_metrics.zig").Metrics;
 const panic = @import("debug.zig").panic;
-const time = @import("time.zig");
 use @import("video_core_properties.zig");

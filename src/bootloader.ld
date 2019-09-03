@@ -1,7 +1,7 @@
 ENTRY(boot)
 
 SECTIONS {
-    kernel_main = 0x1000; /* Must match value from kernel linker script */
+    kernelMainAt0x1100 = 0x1100; /* Must match value from kernel linker script */
 
     . = 0x8800000; /* Must match debug.bootloader_address */
 
@@ -25,4 +25,3 @@ SECTIONS {
         __bss_end = .;
     }
 }
-
