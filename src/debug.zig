@@ -16,10 +16,16 @@ extern var __debug_ranges_end: u8;
 
 const source_files = [_][]const u8{
     "src/debug.zig",
+    "src/video_core_mailboxes.zig",
+    "src/bootloader.zig",
+    "src/serial.zig",
+    "src/video_core_metrics.zig",
+    "src/video_core_properties.zig",
+    "src/video_core_frame_buffer.zig",
+    "src/time.zig",
     "src/main.zig",
     "src/mmio.zig",
-    "src/serial.zig",
-    "src/bootloader.zig",
+    "src/slice_iterator.zig",
 };
 
 var already_panicking: bool = false;
@@ -39,7 +45,6 @@ pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: 
         dumpStackTrace(t);
     }
     dumpCurrentStackTrace(first_trace_addr);
-    serial.log("panic completed");
     wfe_hang();
 }
 
@@ -129,7 +134,7 @@ var serial_out_stream_state = std.io.OutStream(anyerror){
     }.logWithSerial,
 };
 const serial_out_stream = &serial_out_stream_state;
-var kernel_panic_allocator_bytes: [100 * 1024]u8 = undefined;
+var kernel_panic_allocator_bytes: [5 * 1024 * 1024]u8 = undefined;
 var kernel_panic_allocator_state = std.heap.FixedBufferAllocator.init(kernel_panic_allocator_bytes[0..]);
 const kernel_panic_allocator = &kernel_panic_allocator_state.allocator;
 

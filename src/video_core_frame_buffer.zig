@@ -71,7 +71,7 @@ pub const FrameBuffer = struct {
         fb.pixel_order = 0;
         fb.alpha_mode = 0;
 
-        callVideoCoreProperties(&[_]PropertiesArg{
+        var arg = [_]PropertiesArg{
             tag(TAG_ALLOCATE_FRAME_BUFFER, 8),
             in(&fb.alignment),
             out(@ptrCast(*u32, &fb.bytes)),
@@ -98,8 +98,9 @@ pub const FrameBuffer = struct {
             out(&fb.overscan_bottom),
             out(&fb.overscan_left),
             out(&fb.overscan_right),
-            lastTagSentinel(),
-        });
+            last_tag_sentinel,
+        };
+        callVideoCoreProperties(&arg);
 
         fb.bytes = @intToPtr([*]u8, @ptrToInt(fb.bytes) & 0x3FFFFFFF);
         fb.words = @intToPtr([*]u32, @ptrToInt(fb.bytes));
@@ -117,7 +118,7 @@ pub const Bitmap = struct {
     height: u32,
 
     fn getU32(base: [*]u8, offset: u32) u32 {
-        var word: u32 =0;
+        var word: u32 = 0;
         var i: u32 = 0;
         while (i <= 3) : (i += 1) {
             word >>= 8;
@@ -145,7 +146,7 @@ pub const Bitmap = struct {
 
     fn drawRect(self: *Bitmap, width: u32, height: u32, x1: u32, y1: u32, x2: u32, y2: u32) void {
         var y: u32 = 0;
-        while( y < height) : (y += 1) {
+        while (y < height) : (y += 1) {
             var x: u32 = 0;
             while (x < width) : (x += 1) {
                 self.frame_buffer.drawPixel(x + x2, y + y2, self.getPixel(x + x1, y + y1));
@@ -176,4 +177,6 @@ pub const Color = struct {
 const log = @import("serial.zig").log;
 const Metrics = @import("video_core_metrics.zig").Metrics;
 const panic = @import("debug.zig").panic;
-use @import("video_core_properties.zig");
+usingnamespace @import("video_core_properties.zig");
+const std = @import("std");
+const assert = std.debug.assert;

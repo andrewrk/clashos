@@ -1,7 +1,7 @@
 const builtin = @import("builtin");
 const Bitmap = @import("video_core_frame_buffer.zig").Bitmap;
 const Color = @import("video_core_frame_buffer.zig").Color;
-const debug_panic = @import("debug.zig").panic;
+const debug = @import("debug.zig");
 const FrameBuffer = @import("video_core_frame_buffer.zig").FrameBuffer;
 const Metrics = @import("video_core_metrics.zig").Metrics;
 const serial = @import("serial.zig");
@@ -79,27 +79,30 @@ export fn shortExceptionHandlerAt0x1000() linksection(".text.exception") void {
 }
 
 pub fn panic(message: []const u8, trace: ?*builtin.StackTrace) noreturn {
-    serial.log("\nmain.zig pub fn panic() {}", message);
-    while (true) {
-    }
+    debug.panic(trace, "KERNEL PANIC: {}", message);
 }
 
 fn exceptionHandler() void {
     serial.log("arm exception taken");
-    var current_el = asm("mrs %[current_el], CurrentEL"
-        : [current_el] "=r" (-> usize));
+    var current_el = asm ("mrs %[current_el], CurrentEL"
+        : [current_el] "=r" (-> usize)
+    );
     serial.log("CurrentEL {x} exception level {}", current_el, current_el >> 2 & 0x3);
-    var esr_el3 = asm("mrs %[esr_el3], esr_el3"
-        : [esr_el3] "=r" (-> usize));
+    var esr_el3 = asm ("mrs %[esr_el3], esr_el3"
+        : [esr_el3] "=r" (-> usize)
+    );
     serial.log("esr_el3 {x} code 0x{x}", esr_el3, esr_el3 >> 26 & 0x3f);
-    var elr_el3 = asm("mrs %[elr_el3], elr_el3"
-        : [elr_el3] "=r" (-> usize));
+    var elr_el3 = asm ("mrs %[elr_el3], elr_el3"
+        : [elr_el3] "=r" (-> usize)
+    );
     serial.log("elr_el3 {x}", elr_el3);
-    var spsr_el3 = asm("mrs %[spsr_el3], spsr_el3"
-        : [spsr_el3] "=r" (-> usize));
+    var spsr_el3 = asm ("mrs %[spsr_el3], spsr_el3"
+        : [spsr_el3] "=r" (-> usize)
+    );
     serial.log("spsr_el3 {x}", spsr_el3);
-    var far_el3 = asm("mrs %[far_el3], far_el3"
-        : [far_el3] "=r" (-> usize));
+    var far_el3 = asm ("mrs %[far_el3], far_el3"
+        : [far_el3] "=r" (-> usize)
+    );
     serial.log("far_el3 {x}", far_el3);
     serial.log("execution is now stopped in arm exception handler");
     while (true) {
@@ -153,14 +156,14 @@ const ScreenActivity = struct {
         self.pixel_counter = 0;
     }
 
-    fn update (self: *ScreenActivity) void {
+    fn update(self: *ScreenActivity) void {
         fb.drawPixel32(self.x, self.y, self.color32);
         self.x += 1;
         self.pixel_counter += 1;
         if (self.x == logo.width) {
             time.update();
             if (time.seconds >= self.ref_seconds + 1.0) {
-//              serial.log("{} pixels per second", self.pixel_counter);
+                //              serial.log("{} pixels per second", self.pixel_counter);
                 self.pixel_counter = 0;
                 self.ref_seconds += 1.0;
             }
@@ -210,7 +213,7 @@ const SerialActivity = struct {
             for (text_boot) |text_boot_byte, byte_index| {
                 const new_byte = serial.readByte();
                 if (new_byte != text_boot_byte) {
-                    debug_panic(
+                    debug.panic(
                         @errorReturnTrace(),
                         "new_kernel[{}] expected: 0x{x} actual: 0x{x}",
                         byte_index,
@@ -250,7 +253,7 @@ const SerialActivity = struct {
                         @memset(dest_ptr + copy_len, 0, pad_len);
                     },
                     std.elf.PT_GNU_STACK => {}, // ignore
-                    else => debug_panic(
+                    else => debug.panic(
                         @errorReturnTrace(),
                         "unexpected ELF Program Header load type: {}",
                         this_ph.p_type,

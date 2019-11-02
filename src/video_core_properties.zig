@@ -1,7 +1,5 @@
 pub fn callVideoCoreProperties(args: []PropertiesArg) void {
-    if(args[args.len - 1].TagAndLength.tag != TAG_LAST_SENTINEL) {
-        panic(@errorReturnTrace(), "video core mailbox buffer missing last tag sentinel");
-    }
+    assert(args[args.len - 1].TagAndLength.tag == TAG_LAST_SENTINEL);
 
     var words: [1024]u32 align(16) = undefined;
     var buf = SliceIterator.of(u32).init(&words);
@@ -12,10 +10,10 @@ pub fn callVideoCoreProperties(args: []PropertiesArg) void {
     buf.add(BUFFER_REQUEST);
     var next_tag_index = buf.index;
     for (args) |arg| {
-        switch(arg) {
+        switch (arg) {
             PropertiesArg.TagAndLength => |tag_and_length| {
                 if (tag_and_length.tag != 0) {
-//                  log("prepare tag {x} length {}", tag_and_length.tag, tag_and_length.length);
+                    //                  log("prepare tag {x} length {}", tag_and_length.tag, tag_and_length.length);
                 }
                 buf.index = next_tag_index;
                 buf.add(tag_and_length.tag);
@@ -26,8 +24,7 @@ pub fn callVideoCoreProperties(args: []PropertiesArg) void {
                     next_tag_index = buf.index + tag_and_length.length / 4;
                 }
             },
-            PropertiesArg.Out => {
-            },
+            PropertiesArg.Out => {},
             PropertiesArg.In => |ptr| {
                 buf.add(ptr.*);
             },
@@ -47,7 +44,7 @@ pub fn callVideoCoreProperties(args: []PropertiesArg) void {
     const PROPERTY_CHANNEL = 8;
     const request = PROPERTY_CHANNEL | @intCast(u32, buffer_pointer);
     mailboxes[1].pushRequestBlocking(request);
-//  log("pull mailbox response");
+    //  log("pull mailbox response");
     mailboxes[0].pullResponseBlocking(request);
 
     buf.reset();
@@ -56,10 +53,10 @@ pub fn callVideoCoreProperties(args: []PropertiesArg) void {
     check(&buf, BUFFER_RESPONSE_OK);
     next_tag_index = buf.index;
     for (args) |arg| {
-        switch(arg) {
+        switch (arg) {
             PropertiesArg.TagAndLength => |tag_and_length| {
                 if (tag_and_length.tag != 0) {
-//                  log("parse   tag {x} length {}", tag_and_length.tag, tag_and_length.length);
+                    //                  log("parse   tag {x} length {}", tag_and_length.tag, tag_and_length.length);
                 }
                 buf.index = next_tag_index;
                 check(&buf, tag_and_length.tag);
@@ -73,14 +70,13 @@ pub fn callVideoCoreProperties(args: []PropertiesArg) void {
             PropertiesArg.Out => |ptr| {
                 ptr.* = buf.next();
             },
-            PropertiesArg.In => {
-            },
+            PropertiesArg.In => {},
             PropertiesArg.Set => |ptr| {
                 check(&buf, ptr.*);
             },
         }
     }
-//  log("properties done");
+    //  log("properties done");
 }
 
 pub fn out(ptr: *u32) PropertiesArg {
@@ -92,9 +88,7 @@ pub fn in(ptr: *u32) PropertiesArg {
 }
 
 const TAG_LAST_SENTINEL = 0;
-pub fn lastTagSentinel() PropertiesArg {
-    return tag(TAG_LAST_SENTINEL, 0);
-}
+pub const last_tag_sentinel = tag(TAG_LAST_SENTINEL, 0);
 
 pub fn set(ptr: *u32) PropertiesArg {
     return PropertiesArg{ .Set = ptr };
@@ -128,3 +122,4 @@ const mailboxes = @import("video_core_mailboxes.zig").mailboxes;
 const panic = @import("debug.zig").panic;
 const SliceIterator = @import("slice_iterator.zig");
 const std = @import("std");
+const assert = std.debug.assert;

@@ -14,7 +14,7 @@ pub const Metrics = struct {
 
     pub fn init(self: *Metrics) void {
         self.temperature_id = 0;
-        callVideoCoreProperties(&[_]PropertiesArg{
+        var args = [_]PropertiesArg{
             tag(TAG_GET_FIRMWARE_REVISION, 4),
             out(&self.firmware_revision),
             tag(TAG_GET_BOARD_MODEL, 4),
@@ -32,19 +32,21 @@ pub const Metrics = struct {
             out(&self.vc_memory_size),
             tag(TAG_GET_USABLE_DMA_CHANNELS_MASK, 4),
             out(&self.usable_dma_channels_mask),
-            lastTagSentinel(),
-        });
+            last_tag_sentinel,
+        };
+        callVideoCoreProperties(&args);
         self.is_qemu = self.board_model == 0xaaaaaaaa;
         self.update();
     }
 
     pub fn update(m: *Metrics) void {
-        callVideoCoreProperties(&[_]PropertiesArg{
+        var args = [_]PropertiesArg{
             tag(TAG_GET_TEMPERATURE, 8),
             set(&m.temperature_id),
             out(&m.temperature),
-            lastTagSentinel(),
-        });
+            last_tag_sentinel,
+        };
+        callVideoCoreProperties(&args);
     }
 };
 
@@ -58,4 +60,4 @@ const TAG_GET_USABLE_DMA_CHANNELS_MASK = 0x60001;
 const TAG_GET_VC_MEMORY = 0x10006;
 
 const panic = @import("debug.zig").panic;
-use @import("video_core_properties.zig");
+usingnamespace @import("video_core_properties.zig");
