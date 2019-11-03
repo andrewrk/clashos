@@ -123,7 +123,6 @@ export fn kernelMainAt0x1100() linksection(".text.main") noreturn {
     fb.init(&metrics);
     icon.init(&fb, &logo_bmp_file);
     logo.init(&fb, &logo_bmp_file);
-    logo.drawRect(logo.width, logo.height, 0, 0, 0, 0);
 
     screen_activity.init();
     serial_activity.init();
@@ -139,48 +138,58 @@ const ScreenActivity = struct {
     color: Color,
     color32: u32,
     top: u32,
-    x: u32,
-    y: u32,
+    x: i32,
+    y: i32,
+    vel_x: i32,
+    vel_y: i32,
     ref_seconds: f32,
     pixel_counter: u32,
 
     fn init(self: *ScreenActivity) void {
         self.color = color_yellow;
-        self.color32 = fb.color32(self.color);
+        self.color32 = self.color.to32();
         self.height = logo.height;
         self.top = logo.height + margin;
         self.x = 0;
-        self.y = self.top;
+        self.y = 0;
+        self.vel_x = 10;
+        self.vel_y = 10;
         time.update();
         self.ref_seconds = time.seconds;
         self.pixel_counter = 0;
     }
 
     fn update(self: *ScreenActivity) void {
-        fb.drawPixel32(self.x, self.y, self.color32);
-        self.x += 1;
-        self.pixel_counter += 1;
-        if (self.x == logo.width) {
-            time.update();
-            if (time.seconds >= self.ref_seconds + 1.0) {
-                //              serial.log("{} pixels per second", self.pixel_counter);
-                self.pixel_counter = 0;
-                self.ref_seconds += 1.0;
+        time.update();
+        const new_ref_secs = self.ref_seconds + 0.05;
+        if (time.seconds >= new_ref_secs) {
+            const clear_x = @intCast(u32, self.x);
+            const clear_y = @intCast(u32, self.y);
+            fb.clearRect(clear_x, clear_y, logo.width, logo.height, color_black);
+
+            self.ref_seconds = new_ref_secs;
+            self.x += self.vel_x;
+            self.y += self.vel_y;
+
+            if (self.x + i32(logo.width) >= @intCast(i32, fb.virtual_width)) {
+                self.x = @intCast(i32, fb.virtual_width - logo.width);
+                self.vel_x = -self.vel_x;
             }
-            self.x = 0;
-            self.y += 1;
-            if (self.y == self.top + self.height) {
-                self.y = self.top;
+            if (self.y + i32(logo.height) >= @intCast(i32, fb.virtual_height)) {
+                self.y = @intCast(i32, fb.virtual_height - logo.height);
+                self.vel_y = -self.vel_y;
             }
-            const delta = 10;
-            self.color.red = self.color.red +% delta;
-            if (self.color.red < delta) {
-                self.color.green = self.color.green +% delta;
-                if (self.color.green < delta) {
-                    self.color.blue = self.color.blue +% delta;
-                }
+            if (self.x < 0) {
+                self.x = 0;
+                self.vel_x = -self.vel_x;
             }
-            self.color32 = fb.color32(self.color);
+            if (self.y < 0) {
+                self.y = 0;
+                self.vel_y = -self.vel_y;
+            }
+            const draw_x = @intCast(u32, self.x);
+            const draw_y = @intCast(u32, self.y);
+            logo.drawRect(logo.width, logo.height, 0, 0, draw_x, draw_y);
         }
     }
 };
@@ -299,6 +308,7 @@ const color_green = Color{ .red = 0, .green = 255, .blue = 0, .alpha = 255 };
 const color_blue = Color{ .red = 0, .green = 0, .blue = 255, .alpha = 255 };
 const color_yellow = Color{ .red = 255, .green = 255, .blue = 0, .alpha = 255 };
 const color_white = Color{ .red = 255, .green = 255, .blue = 255, .alpha = 255 };
+const color_black = Color{ .red = 0, .green = 0, .blue = 0, .alpha = 255 };
 
 const name = "ClashOS";
 const version = "0.2";

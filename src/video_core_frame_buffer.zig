@@ -6,8 +6,7 @@ pub const FrameBuffer = struct {
     physical_height: u32,
     pitch: u32,
     pixel_order: u32,
-    bytes: [*]u8,
-    words: [*]u32,
+    words: [*]volatile u32,
     size: u32,
     virtual_height: u32,
     virtual_width: u32,
@@ -28,19 +27,21 @@ pub const FrameBuffer = struct {
         }
     }
 
-    fn drawPixel(fb: *FrameBuffer, x: u32, y: u32, color: Color) void {
-        if (x >= fb.virtual_width or y >= fb.virtual_height) {
-            panic(@errorReturnTrace(), "frame buffer index {}, {} does not fit in {}x{}", x, y, fb.virtual_width, fb.virtual_height);
+    fn clearRect(fb: *FrameBuffer, x2: u32, y2: u32, width: u32, height: u32, color: Color) void {
+        var y: u32 = 0;
+        while (y < height) : (y += 1) {
+            var x: u32 = 0;
+            while (x < width) : (x += 1) {
+                fb.drawPixel(x + x2, y + y2, color);
+            }
         }
-        const offset = y * fb.pitch + x * 4;
-        fb.bytes[offset + 0] = color.blue;
-        fb.bytes[offset + 1] = color.green;
-        fb.bytes[offset + 2] = color.red;
-        fb.bytes[offset + 3] = @intCast(u8, 255 - @intCast(i32, color.alpha));
     }
 
-    fn color32(fb: *FrameBuffer, color: Color) u32 {
-        return (255 - @intCast(u32, color.alpha) << 24) | @intCast(u32, color.red) << 16 | @intCast(u32, color.green) << 8 | @intCast(u32, color.blue) << 0;
+    fn drawPixel(fb: *FrameBuffer, x: u32, y: u32, color: Color) void {
+        assert(x < fb.virtual_width);
+        assert(y < fb.virtual_height);
+        const offset = y * fb.pitch + x;
+        fb.drawPixel32(x, y, color.to32());
     }
 
     fn drawPixel32(fb: *FrameBuffer, x: u32, y: u32, color: u32) void {
@@ -71,10 +72,11 @@ pub const FrameBuffer = struct {
         fb.pixel_order = 0;
         fb.alpha_mode = 0;
 
+        var fb_addr: u32 = undefined;
         var arg = [_]PropertiesArg{
             tag(TAG_ALLOCATE_FRAME_BUFFER, 8),
             in(&fb.alignment),
-            out(@ptrCast(*u32, &fb.bytes)),
+            out(&fb_addr),
             out(&fb.size),
             tag(TAG_SET_DEPTH, 4),
             set(&fb.depth),
@@ -102,10 +104,9 @@ pub const FrameBuffer = struct {
         };
         callVideoCoreProperties(&arg);
 
-        fb.bytes = @intToPtr([*]u8, @ptrToInt(fb.bytes) & 0x3FFFFFFF);
-        fb.words = @intToPtr([*]u32, @ptrToInt(fb.bytes));
-        log("fb align {} addr {x} alpha {} pitch {} order {} size {} physical {}x{} virtual {}x{} offset {},{} overscan t {} b {} l {} r {}", fb.alignment, @ptrToInt(fb.bytes), fb.alpha_mode, fb.pitch, fb.pixel_order, fb.size, fb.physical_width, fb.physical_height, fb.virtual_width, fb.virtual_height, fb.virtual_offset_x, fb.virtual_offset_y, fb.overscan_top, fb.overscan_bottom, fb.overscan_left, fb.overscan_right);
-        if (@ptrToInt(fb.bytes) == 0) {
+        fb.words = @intToPtr([*]volatile u32, fb_addr & 0x3FFFFFFF);
+        log("fb align {} addr {x} alpha {} pitch {} order {} size {} physical {}x{} virtual {}x{} offset {},{} overscan t {} b {} l {} r {}", fb.alignment, @ptrToInt(fb.words), fb.alpha_mode, fb.pitch, fb.pixel_order, fb.size, fb.physical_width, fb.physical_height, fb.virtual_width, fb.virtual_height, fb.virtual_offset_x, fb.virtual_offset_y, fb.overscan_top, fb.overscan_bottom, fb.overscan_left, fb.overscan_right);
+        if (@ptrToInt(fb.words) == 0) {
             panic(@errorReturnTrace(), "frame buffer pointer is zero");
         }
     }
@@ -114,8 +115,8 @@ pub const FrameBuffer = struct {
 pub const Bitmap = struct {
     frame_buffer: *FrameBuffer,
     pixel_array: [*]u8,
-    width: u32,
-    height: u32,
+    width: u31,
+    height: u31,
 
     fn getU32(base: [*]u8, offset: u32) u32 {
         var word: u32 = 0;
@@ -130,8 +131,8 @@ pub const Bitmap = struct {
     pub fn init(bitmap: *Bitmap, frame_buffer: *FrameBuffer, file: []u8) void {
         bitmap.frame_buffer = frame_buffer;
         bitmap.pixel_array = @intToPtr([*]u8, @ptrToInt(file.ptr) + getU32(file.ptr, 0x0A));
-        bitmap.width = getU32(file.ptr, 0x12);
-        bitmap.height = getU32(file.ptr, 0x16);
+        bitmap.width = @intCast(u31, getU32(file.ptr, 0x12));
+        bitmap.height = @intCast(u31, getU32(file.ptr, 0x16));
     }
 
     fn getPixel(self: *Bitmap, x: u32, y: u32) Color {
@@ -172,6 +173,10 @@ pub const Color = struct {
     green: u8,
     blue: u8,
     alpha: u8,
+
+    fn to32(color: Color) u32 {
+        return (255 - @intCast(u32, color.alpha) << 24) | @intCast(u32, color.red) << 16 | @intCast(u32, color.green) << 8 | @intCast(u32, color.blue) << 0;
+    }
 };
 
 const log = @import("serial.zig").log;
