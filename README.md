@@ -5,7 +5,8 @@ Raspberry Pi 3 B+ hardware, written entirely in [Zig](https://ziglang.org/).
 
 ## Current Status
 
-"Hello World" OS using the MiniUART. Tested and working on real hardware.
+"Hello World" OS using the MiniUART. ~Tested and working on real hardware.~
+It has regressed on real hardware, and I haven't fixed it yet.
 
 ## Building
 
