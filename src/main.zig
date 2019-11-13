@@ -112,7 +112,7 @@ fn exceptionHandler() void {
 
 export fn kernelMainAt0x1100() linksection(".text.main") noreturn {
     // clear .bss
-    @memset((*volatile [1]u8)(&__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
+    @memset(@as(*volatile [1]u8, &__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
 
     serial.init();
     serial.log("\n{} {} ...", name, version);
@@ -171,11 +171,11 @@ const ScreenActivity = struct {
             self.x += self.vel_x;
             self.y += self.vel_y;
 
-            if (self.x + i32(logo.width) >= @intCast(i32, fb.virtual_width)) {
+            if (self.x + @as(i32, logo.width) >= @intCast(i32, fb.virtual_width)) {
                 self.x = @intCast(i32, fb.virtual_width - logo.width);
                 self.vel_x = -self.vel_x;
             }
-            if (self.y + i32(logo.height) >= @intCast(i32, fb.virtual_height)) {
+            if (self.y + @as(i32, logo.height) >= @intCast(i32, fb.virtual_height)) {
                 self.y = @intCast(i32, fb.virtual_height - logo.height);
                 self.vel_y = -self.vel_y;
             }
@@ -241,7 +241,7 @@ const SerialActivity = struct {
             // Next we copy the bootloader code to the correct memory address,
             // and then jump to it.
             // Read the ELF
-            var bootloader_code_ptr = ([*]const u8)(&bootloader_code); // TODO remove workaround `var`
+            var bootloader_code_ptr = @as([*]const u8, &bootloader_code); // TODO remove workaround `var`
             const ehdr = @ptrCast(*const std.elf.Elf64_Ehdr, bootloader_code_ptr);
             var phdr_addr = bootloader_code_ptr + ehdr.e_phoff;
             var phdr_i: usize = 0;

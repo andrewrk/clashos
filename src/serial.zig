@@ -26,28 +26,31 @@ pub const out = &out_stream_state;
 
 const NoError = error{};
 
-var in_stream_state = std.io.InStream(NoError){ .readFn = struct {
-    fn readFn(self: *std.io.InStream(NoError), buffer: []u8) NoError!usize {
-        for (buffer) |*byte| {
-            byte.* = readByte();
+var in_stream_state = std.io.InStream(NoError){
+    .readFn = struct {
+        fn readFn(self: *std.io.InStream(NoError), buffer: []u8) NoError!usize {
+            for (buffer) |*byte| {
+                byte.* = readByte();
+            }
+            return buffer.len;
         }
-        return buffer.len;
-    }
-}.readFn };
+    }.readFn,
+};
 
-var out_stream_state = std.io.OutStream(NoError){ .writeFn = struct {
-    fn writeFn(self: *std.io.OutStream(NoError), bytes: []const u8) NoError!void {
-        for (bytes) |byte| {
-            writeByte(byte);
+var out_stream_state = std.io.OutStream(NoError){
+    .writeFn = struct {
+        fn writeFn(self: *std.io.OutStream(NoError), bytes: []const u8) NoError!void {
+            for (bytes) |byte| {
+                writeByte(byte);
+            }
+            return buffer.len;
         }
-        return buffer.len;
-    }
-}.writeFn };
+    }.writeFn,
+};
 
 pub fn writeByte(byte: u8) void {
     // Wait for UART to become ready to transmit.
-    while ((mmio.read(AUX_MU_LSR_REG) & 0x20) == 0) {
-    }
+    while ((mmio.read(AUX_MU_LSR_REG) & 0x20) == 0) {}
     mmio.write(AUX_MU_IO_REG, byte);
 }
 
@@ -57,8 +60,7 @@ pub fn isReadByteReady() bool {
 
 pub fn readByte() u8 {
     // Wait for UART to have recieved something.
-    while (!isReadByteReady()) {
-    }
+    while (!isReadByteReady()) {}
     return @truncate(u8, mmio.read(AUX_MU_IO_REG));
 }
 
@@ -91,9 +93,9 @@ pub fn init() void {
     mmio.write(AUX_MU_IIR_REG, 0xC6);
     mmio.write(AUX_MU_BAUD_REG, 270);
     var ra = mmio.read(GPFSEL1);
-    ra &= ~u32(7 << 12); //gpio14
+    ra &= ~@as(u32, 7 << 12); //gpio14
     ra |= 2 << 12; //alt5
-    ra &= ~u32(7 << 15); //gpio15
+    ra &= ~@as(u32, 7 << 15); //gpio15
     ra |= 2 << 15; //alt5
     mmio.write(GPFSEL1, ra);
     mmio.write(GPPUD, 0);

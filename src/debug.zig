@@ -104,7 +104,7 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
             return in_stream_pos;
         }
         fn getEndPosFn(self: *SeekableStream) anyerror!u64 {
-            return u64(@ptrToInt(&__debug_ranges_end));
+            return @as(u64, @ptrToInt(&__debug_ranges_end));
         }
     };
     if (S.have_self_debug_info) return &S.self_debug_info;

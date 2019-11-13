@@ -31,8 +31,8 @@ pub fn build(b: *Builder) !void {
     exe.step.dependOn(&bootloader.step);
 
     const run_objcopy = b.addSystemCommand([_][]const u8{
-        "objcopy",     exe.getOutputPath(),
-        "-O",          "binary",
+        "llvm-objcopy", exe.getOutputPath(),
+        "-O",           "binary",
         "clashos.bin",
     });
     run_objcopy.step.dependOn(&exe.step);
