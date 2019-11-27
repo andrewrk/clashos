@@ -7,6 +7,7 @@ pub fn build(b: *Builder) !void {
     const want_gdb = b.option(bool, "gdb", "Build for using gdb with qemu") orelse false;
     const want_pty = b.option(bool, "pty", "Create a separate TTY path") orelse false;
     const want_nodisplay = b.option(bool, "nodisplay", "No display for qemu") orelse false;
+    const want_stack_traces = b.option(bool, "stacktraces", "Adds debug info to the executable for runtime stack traces") orelse false;
 
     const arch = builtin.Arch{ .aarch64 = builtin.Arch.Arm64.v8 };
     const environ = builtin.Abi.eabihf;
@@ -20,24 +21,32 @@ pub fn build(b: *Builder) !void {
     bootloader.strip = true;
     bootloader.setOutputDir("zig-cache");
 
+    const run_objcopy_bootloader = b.addSystemCommand(&[_][]const u8{
+        "llvm-objcopy",             bootloader.getOutputPath(),
+        "-O",                       "binary",
+        "zig-cache/bootloader.bin",
+    });
+    run_objcopy_bootloader.step.dependOn(&bootloader.step);
+
     const exec_name = if (want_gdb) "clashos-dbg" else "clashos";
     const exe = b.addExecutable(exec_name, "src/main.zig");
     exe.setOutputDir("zig-cache");
     exe.setBuildMode(mode);
     exe.setTarget(arch, builtin.Os.freestanding, environ);
-    const linker_script = if (want_gdb) "src/qemu-gdb.ld" else "src/linker.ld";
+    const linker_script = if (want_gdb or !want_stack_traces) "src/qemu-gdb.ld" else "src/linker.ld";
     exe.setLinkerScriptPath(linker_script);
-    exe.addBuildOption([]const u8, "bootloader_exe_path", b.fmt("\"{}\"", bootloader.getOutputPath()));
-    exe.step.dependOn(&bootloader.step);
+    exe.addBuildOption([]const u8, "bootloader_exe_path", b.fmt("\"{}\"", .{"zig-cache/bootloader.bin"}));
+    exe.addBuildOption(bool, "want_stack_traces", want_stack_traces);
+    exe.step.dependOn(&run_objcopy_bootloader.step);
 
-    const run_objcopy = b.addSystemCommand(&[_][]const u8{
+    const run_objcopy_clashos = b.addSystemCommand(&[_][]const u8{
         "llvm-objcopy", exe.getOutputPath(),
         "-O",           "binary",
         "clashos.bin",
     });
-    run_objcopy.step.dependOn(&exe.step);
+    run_objcopy_clashos.step.dependOn(&exe.step);
 
-    b.default_step.dependOn(&run_objcopy.step);
+    b.default_step.dependOn(&run_objcopy_clashos.step);
 
     const qemu = b.step("qemu", "Run the OS in qemu");
     var qemu_args = std.ArrayList([]const u8).init(b.allocator);
@@ -71,6 +80,6 @@ pub fn build(b: *Builder) !void {
     }
 
     const upload = b.step("upload", "Send a new kernel image to a running instance. (See -Dtty option)");
-    upload.dependOn(&run_objcopy.step);
+    upload.dependOn(&run_objcopy_clashos.step);
     upload.dependOn(&run_send_image_tool.step);
 }

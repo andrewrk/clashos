@@ -48,9 +48,14 @@ var out_stream_state = std.io.OutStream(NoError){
     }.writeFn,
 };
 
+pub fn isDoneWriting() bool {
+    return mmio.read(AUX_MU_LSR_REG) & (1 << 6) != 0;
+}
+
 pub fn writeByte(byte: u8) void {
     // Wait for UART to become ready to transmit.
     while ((mmio.read(AUX_MU_LSR_REG) & 0x20) == 0) {}
+    while (!isDoneWriting()) {}
     mmio.write(AUX_MU_IO_REG, byte);
 }
 
@@ -61,6 +66,10 @@ pub fn isReadByteReady() bool {
 pub fn readByte() u8 {
     // Wait for UART to have recieved something.
     while (!isReadByteReady()) {}
+
+    if (mmio.read(AUX_MU_LSR_REG) & 0x02 != 0) { // TODO: Should probably fail instead
+        log("Receiver overrun! You're baud rate is probably to fast!\n", .{});
+    }
     return @truncate(u8, mmio.read(AUX_MU_IO_REG));
 }
 
@@ -106,8 +115,8 @@ pub fn init() void {
     mmio.write(AUX_MU_CNTL_REG, 3);
 }
 
-pub fn log(comptime format: []const u8, args: ...) void {
-    fmt.format({}, NoError, logBytes, format ++ "\n", args) catch |e| switch (e) {};
+pub fn log(comptime format: []const u8, args: var) void {
+    fmt.format({}, NoError, logBytes, format, args) catch |e| switch (e) {};
 }
 
 fn logBytes(context: void, bytes: []const u8) NoError!void {

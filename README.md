@@ -54,7 +54,7 @@ the `-Dgdb` to both `zig build` commands.
 1. Mount an sdcard with a single FAT32 partition.
 2. Copy `boot/*` to `/path/to/sdcard/*`.
 3. `zig build`
-4. Copy `clashos.bin` to `/path/to/sdcard/kernel7.img`.
+4. Copy `clashos.bin` to `/path/to/sdcard/kernel8.img`.
 
 For further changes repeat steps 3 and 4.
 
