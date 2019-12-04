@@ -195,8 +195,7 @@ fn printLineFromFile(out_stream: var, line_info: std.debug.LineInfo) anyerror!vo
 fn writeCurrentStackTrace(dwarf_info: *std.debug.DwarfInfo, start_addr: ?usize) !void {
     var it = std.debug.StackIterator.init(start_addr);
     while (it.next()) |return_address| {
-        try std.debug.printSourceAtAddressDwarf(
-            dwarf_info,
+        try dwarf_info.printSourceAtAddress(
             serial_out_stream,
             return_address,
             true,
@@ -221,8 +220,7 @@ fn writeStackTrace(stack_trace: *const builtin.StackTrace, dwarf_info: *std.debu
         frame_index = (frame_index + 1) % stack_trace.instruction_addresses.len;
     }) {
         const return_address = stack_trace.instruction_addresses[frame_index];
-        try std.debug.printSourceAtAddressDwarf(
-            dwarf_info,
+        try dwarf_info.printSourceAtAddress(
             serial_out_stream,
             return_address,
             true,

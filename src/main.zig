@@ -289,7 +289,7 @@ const SerialActivity = struct {
 };
 
 const build_options = @import("build_options");
-const bootloader_code align(@alignOf(std.elf.Elf64_Ehdr)) = @embedFile("../" ++ build_options.bootloader_exe_path);
+const bootloader_code align(@alignOf(std.elf.Elf64_Ehdr)) = @embedFile("../" ++ build_options.bootloader_exe_path).*;
 
 var screen_activity: ScreenActivity = undefined;
 var serial_activity: SerialActivity = undefined;
@@ -298,8 +298,8 @@ var metrics: Metrics = undefined;
 var icon: Bitmap = undefined;
 var logo: Bitmap = undefined;
 
-var icon_bmp_file align(@alignOf(u32)) = @embedFile("../assets/zig-icon.bmp");
-var logo_bmp_file align(@alignOf(u32)) = @embedFile("../assets/zig-logo.bmp");
+var icon_bmp_file align(@alignOf(u32)) = @embedFile("../assets/zig-icon.bmp").*;
+var logo_bmp_file align(@alignOf(u32)) = @embedFile("../assets/zig-logo.bmp").*;
 
 const margin = 10;
 
