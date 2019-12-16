@@ -1,5 +1,6 @@
 const builtin = @import("builtin");
 const std = @import("std");
+const build_options = @import("build_options");
 const assert = std.debug.assert;
 const serial = @import("serial.zig");
 
@@ -15,40 +16,53 @@ extern var __debug_ranges_start: u8;
 extern var __debug_ranges_end: u8;
 
 const source_files = [_][]const u8{
-    "src/debug.zig",
-    "src/video_core_mailboxes.zig",
+    "src/main.zig",
     "src/bootloader.zig",
+    "src/debug.zig",
     "src/serial.zig",
+    "src/time.zig",
+    "src/mmio.zig",
+    "src/exceptions.zig",
     "src/video_core_metrics.zig",
     "src/video_core_properties.zig",
     "src/video_core_frame_buffer.zig",
-    "src/time.zig",
-    "src/main.zig",
-    "src/mmio.zig",
+    "src/video_core_mailboxes.zig",
     "src/slice_iterator.zig",
 };
 
 var already_panicking: bool = false;
 
-pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: ...) noreturn {
+pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: var) noreturn {
     @setCold(true);
     if (already_panicking) {
-        serial.log("\npanicked during kernel panic");
-        wfe_hang();
+        serial.log("panicked during kernel panic!!\n", .{});
+        wfeHang();
     }
     already_panicking = true;
 
-    serial.log("panic: " ++ fmt, args);
+    serial.log("panic: " ++ fmt ++ "\n", args);
 
     const first_trace_addr = @returnAddress();
-    if (stack_trace) |t| {
-        dumpStackTrace(t);
+    if (build_options.want_stack_traces) {
+        if (stack_trace) |t| {
+            dumpStackTrace(t);
+        }
+        dumpCurrentStackTrace(first_trace_addr);
+    } else {
+        serial.log("Stack trace:\n", .{});
+        var it = std.debug.StackIterator{ .first_addr = null, .fp = @frameAddress() };
+        while (it.next()) |return_address| {
+            if (return_address == 0) break;
+
+            serial.log("  0x{x}\n", .{return_address - 4});
+        }
+        serial.log("The stack trace can be decoded using `addr2line -e zig-cache/clashos <address>`\n\n", .{});
+        serial.log("To get stack traces during runtime, enable them using `zig build -Dstacktraces`\n", .{});
     }
-    dumpCurrentStackTrace(first_trace_addr);
-    wfe_hang();
+    wfeHang();
 }
 
-pub fn wfe_hang() noreturn {
+pub fn wfeHang() noreturn {
     while (true) {
         asm volatile ("wfe");
     }
@@ -116,7 +130,7 @@ fn getSelfDebugInfo() !*std.debug.DwarfInfo {
         .debug_info = dwarfSectionFromSymbol(&__debug_info_start, &__debug_info_end),
         .debug_abbrev = dwarfSectionFromSymbolAbs(&__debug_abbrev_start, &__debug_abbrev_end),
         .debug_str = dwarfSectionFromSymbolAbs(&__debug_str_start, &__debug_str_end),
-        .debug_line = dwarfSectionFromSymbol(&__debug_line_start, &__debug_line_end),
+        .debug_line = dwarfSectionFromSymbolAbs(&__debug_line_start, &__debug_line_end),
         .debug_ranges = dwarfSectionFromSymbolAbs(&__debug_ranges_start, &__debug_ranges_end),
         .abbrev_table_list = undefined,
         .compile_unit_list = undefined,
@@ -140,22 +154,22 @@ const kernel_panic_allocator = &kernel_panic_allocator_state.allocator;
 
 pub fn dumpStackTrace(stack_trace: *const builtin.StackTrace) void {
     const dwarf_info = getSelfDebugInfo() catch |err| {
-        serial.log("Unable to dump stack trace: Unable to open debug info: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: Unable to open debug info: {}", .{@errorName(err)});
         return;
     };
     writeStackTrace(stack_trace, dwarf_info) catch |err| {
-        serial.log("Unable to dump stack trace: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: {}", .{@errorName(err)});
         return;
     };
 }
 
 pub fn dumpCurrentStackTrace(start_addr: ?usize) void {
     const dwarf_info = getSelfDebugInfo() catch |err| {
-        serial.log("Unable to dump stack trace: Unable to open debug info: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: Unable to open debug info: {}", .{@errorName(err)});
         return;
     };
     writeCurrentStackTrace(dwarf_info, start_addr) catch |err| {
-        serial.log("Unable to dump stack trace: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: {}", .{@errorName(err)});
         return;
     };
 }
@@ -189,15 +203,17 @@ fn printLineFromFile(out_stream: var, line_info: std.debug.LineInfo) anyerror!vo
             return;
         }
     }
-    try out_stream.print("(source file {} not added in std/debug.zig)\n", line_info.file_name);
+    try out_stream.print("(source file {} not added in std.debug.zig)\n", .{line_info.file_name});
 }
 
 fn writeCurrentStackTrace(dwarf_info: *std.debug.DwarfInfo, start_addr: ?usize) !void {
     var it = std.debug.StackIterator.init(start_addr);
     while (it.next()) |return_address| {
+        if (return_address == 0) break;
+
         try dwarf_info.printSourceAtAddress(
             serial_out_stream,
-            return_address,
+            return_address - 4,
             true,
             printLineFromFile,
         );

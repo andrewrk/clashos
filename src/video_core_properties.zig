@@ -39,7 +39,7 @@ pub fn callVideoCoreProperties(args: []PropertiesArg) void {
 
     var buffer_pointer = @ptrToInt(buf.data.ptr);
     if (buffer_pointer & 0xF != 0) {
-        panic(@errorReturnTrace(), "video core mailbox buffer not aligned to 16 bytes");
+        panic(@errorReturnTrace(), "video core mailbox buffer not aligned to 16 bytes", .{});
     }
     const PROPERTY_CHANNEL = 8;
     const request = PROPERTY_CHANNEL | @intCast(u32, buffer_pointer);
@@ -113,7 +113,13 @@ const TagAndLength = struct {
 fn check(buf: *SliceIterator.of(u32), word: u32) void {
     const was = buf.next();
     if (was != word) {
-        panic(@errorReturnTrace(), "video core mailbox failed index {} was {}/{x} expected {}/{x}", buf.index - 1, was, was, word, word);
+        panic(@errorReturnTrace(), "video core mailbox failed index {} was {}/{x} expected {}/{x}", .{
+            buf.index - 1,
+            was,
+            was,
+            word,
+            word,
+        });
     }
 }
 

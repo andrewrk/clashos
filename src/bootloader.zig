@@ -10,19 +10,24 @@ const builtin = @import("builtin");
 const debug = @import("debug.zig");
 const serial = @import("serial.zig");
 
-export fn bootloader_main(start_addr: [*]u8, len: usize) linksection(".text.first") noreturn {
+export fn bootloaderMain(start_addr: [*]u8, len: usize) linksection(".text.first") noreturn {
     var i: usize = 0;
     while (i < len) : (i += 1) {
         start_addr[i] = serial.readByte();
     }
+
+    serial.log("Jumping to new code...\n", .{});
+    while (!serial.isDoneWriting()) {}
     asm volatile (
-        \\mov sp,#0x08000000
-        \\bl kernelMainAt0x1100
+        \\ mov sp,#0x08000000
+        \\ eor x29, x29, x29
+        \\ eor x30, x30, x30
+        \\ b kernel_main
     );
     unreachable;
 }
 
 pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
-    serial.log("BOOTLOADER PANIC: {}", message);
-    debug.wfe_hang();
+    serial.log("BOOTLOADER PANIC: {}", .{message});
+    debug.wfeHang();
 }

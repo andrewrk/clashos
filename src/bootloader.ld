@@ -1,7 +1,7 @@
 ENTRY(boot)
 
 SECTIONS {
-    kernelMainAt0x1100 = 0x1100; /* Must match value from kernel linker script */
+    kernel_main = 0x80100; /* Must match value from kernel linker script */
 
     . = 0x8800000; /* Must match debug.bootloader_address */
 

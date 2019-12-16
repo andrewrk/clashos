@@ -46,7 +46,7 @@ pub const FrameBuffer = struct {
 
     fn drawPixel32(fb: *FrameBuffer, x: u32, y: u32, color: u32) void {
         if (x >= fb.virtual_width or y >= fb.virtual_height) {
-            panic(@errorReturnTrace(), "frame buffer index {}, {} does not fit in {}x{}", x, y, fb.virtual_width, fb.virtual_height);
+            panic(@errorReturnTrace(), "frame buffer index {}, {} does not fit in {}x{}\n", .{ x, y, fb.virtual_width, fb.virtual_height });
         }
         fb.words[y * fb.pitch / 4 + x] = color;
     }
@@ -105,9 +105,26 @@ pub const FrameBuffer = struct {
         callVideoCoreProperties(&arg);
 
         fb.words = @intToPtr([*]volatile u32, fb_addr & 0x3FFFFFFF);
-        log("fb align {} addr {x} alpha {} pitch {} order {} size {} physical {}x{} virtual {}x{} offset {},{} overscan t {} b {} l {} r {}", fb.alignment, @ptrToInt(fb.words), fb.alpha_mode, fb.pitch, fb.pixel_order, fb.size, fb.physical_width, fb.physical_height, fb.virtual_width, fb.virtual_height, fb.virtual_offset_x, fb.virtual_offset_y, fb.overscan_top, fb.overscan_bottom, fb.overscan_left, fb.overscan_right);
+        log("fb align {} addr {x} alpha {} pitch {} order {} size {} physical {}x{} virtual {}x{} offset {},{} overscan t {} b {} l {} r {}\n", .{
+            fb.alignment,
+            @ptrToInt(fb.words),
+            fb.alpha_mode,
+            fb.pitch,
+            fb.pixel_order,
+            fb.size,
+            fb.physical_width,
+            fb.physical_height,
+            fb.virtual_width,
+            fb.virtual_height,
+            fb.virtual_offset_x,
+            fb.virtual_offset_y,
+            fb.overscan_top,
+            fb.overscan_bottom,
+            fb.overscan_left,
+            fb.overscan_right,
+        });
         if (@ptrToInt(fb.words) == 0) {
-            panic(@errorReturnTrace(), "frame buffer pointer is zero");
+            panic(@errorReturnTrace(), "frame buffer pointer is zero", .{});
         }
     }
 };

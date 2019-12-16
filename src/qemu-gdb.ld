@@ -1,12 +1,12 @@
 ENTRY(_start)
 
 SECTIONS {
-    . = 0x0000;
+    . = 0x80000;
 
     .text : ALIGN(4K) {
         KEEP(*(.text.boot))
         __end_init = .;
-        . = 0x1000; /* Must match address from bootloader.ld */
+        . = 0x80100; /* Must match address from bootloader.ld */
         KEEP(*(.text.main))
         *(.text)
     }
@@ -36,5 +36,5 @@ SECTIONS {
         __debug_ranges_end = .;
     }
 
-    bootloader_main = 0x8800000; /* Must match bootloader linker script */
+    bootloaderMain = 0x8800000; /* Must match bootloader linker script */
 }

@@ -12,7 +12,7 @@ const Mailbox = packed struct {
 
     fn init(index: u32) *Mailbox {
         if (index > 1) {
-            panic(@errorReturnTrace(), "mailbox index {} exceeds 1", index);
+            panic(@errorReturnTrace(), "mailbox index {} exceeds 1", .{index});
         }
         const PERIPHERAL_BASE = 0x3F000000;
         const MAILBOXES_OFFSET = 0xB880;
@@ -29,7 +29,7 @@ const Mailbox = packed struct {
         blockWhile(this, isEmpty);
         const response = this.pull();
         if (response != request) {
-            panic(@errorReturnTrace(), "buffer address and channel response was {x} expecting {x}", response, request);
+            panic(@errorReturnTrace(), "buffer address and channel response was {x} expecting {x}", .{ response, request });
         }
     }
 
@@ -46,13 +46,13 @@ const Mailbox = packed struct {
         return mmio.read(@ptrToInt(&this.status_register));
     }
 
-    fn blockWhile(this: *Mailbox, conditionFn: fn(*Mailbox) bool) void {
+    fn blockWhile(this: *Mailbox, conditionFn: fn (*Mailbox) bool) void {
         time.update();
         const start = time.seconds;
         while (conditionFn(this)) {
             time.update();
             if (time.seconds - start >= 0.1) {
-                panic(@errorReturnTrace(), "time out waiting for video core mailbox");
+                panic(@errorReturnTrace(), "time out waiting for video core mailbox", .{});
             }
         }
     }
