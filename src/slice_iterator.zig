@@ -29,7 +29,7 @@ pub fn of(comptime T: type) type {
             if (self.index < self.data.len) {
                 self.index += 1;
             } else {
-                panic(@errorReturnTrace(), "BufferExhausted");
+                panic(@errorReturnTrace(), "BufferExhausted", .{});
             }
         }
     };

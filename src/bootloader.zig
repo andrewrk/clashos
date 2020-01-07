@@ -23,6 +23,6 @@ export fn bootloader_main(start_addr: [*]u8, len: usize) linksection(".text.firs
 }
 
 pub fn panic(message: []const u8, stack_trace: ?*builtin.StackTrace) noreturn {
-    serial.log("BOOTLOADER PANIC: {}", message);
+    serial.log("BOOTLOADER PANIC: {}", .{message});
     debug.wfe_hang();
 }

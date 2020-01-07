@@ -27,7 +27,7 @@ pub fn build(b: *Builder) !void {
     exe.setTarget(arch, builtin.Os.freestanding, environ);
     const linker_script = if (want_gdb) "src/qemu-gdb.ld" else "src/linker.ld";
     exe.setLinkerScriptPath(linker_script);
-    exe.addBuildOption([]const u8, "bootloader_exe_path", b.fmt("\"{}\"", bootloader.getOutputPath()));
+    exe.addBuildOption([]const u8, "bootloader_exe_path", b.fmt("\"{}\"", .{bootloader.getOutputPath()}));
     exe.step.dependOn(&bootloader.step);
 
     const run_objcopy = b.addSystemCommand(&[_][]const u8{
