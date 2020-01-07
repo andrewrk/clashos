@@ -79,32 +79,32 @@ export fn shortExceptionHandlerAt0x1000() linksection(".text.exception") void {
 }
 
 pub fn panic(message: []const u8, trace: ?*builtin.StackTrace) noreturn {
-    debug.panic(trace, "KERNEL PANIC: {}", message);
+    debug.panic(trace, "KERNEL PANIC: {}", .{message});
 }
 
 fn exceptionHandler() void {
-    serial.log("arm exception taken");
+    serial.log("arm exception taken", .{});
     var current_el = asm ("mrs %[current_el], CurrentEL"
         : [current_el] "=r" (-> usize)
     );
-    serial.log("CurrentEL {x} exception level {}", current_el, current_el >> 2 & 0x3);
+    serial.log("CurrentEL {x} exception level {}", .{ current_el, current_el >> 2 & 0x3 });
     var esr_el3 = asm ("mrs %[esr_el3], esr_el3"
         : [esr_el3] "=r" (-> usize)
     );
-    serial.log("esr_el3 {x} code 0x{x}", esr_el3, esr_el3 >> 26 & 0x3f);
+    serial.log("esr_el3 {x} code 0x{x}", .{ esr_el3, esr_el3 >> 26 & 0x3f });
     var elr_el3 = asm ("mrs %[elr_el3], elr_el3"
         : [elr_el3] "=r" (-> usize)
     );
-    serial.log("elr_el3 {x}", elr_el3);
+    serial.log("elr_el3 {x}", .{elr_el3});
     var spsr_el3 = asm ("mrs %[spsr_el3], spsr_el3"
         : [spsr_el3] "=r" (-> usize)
     );
-    serial.log("spsr_el3 {x}", spsr_el3);
+    serial.log("spsr_el3 {x}", .{spsr_el3});
     var far_el3 = asm ("mrs %[far_el3], far_el3"
         : [far_el3] "=r" (-> usize)
     );
-    serial.log("far_el3 {x}", far_el3);
-    serial.log("execution is now stopped in arm exception handler");
+    serial.log("far_el3 {x}", .{far_el3});
+    serial.log("execution is now stopped in arm exception handler", .{});
     while (true) {
         asm volatile ("wfe");
     }
@@ -115,7 +115,7 @@ export fn kernelMainAt0x1100() linksection(".text.main") noreturn {
     @memset(@as(*volatile [1]u8, &__bss_start), 0, @ptrToInt(&__bss_end) - @ptrToInt(&__bss_start));
 
     serial.init();
-    serial.log("\n{} {} ...", name, version);
+    serial.log("\n{} {} ...", .{ name, version });
 
     time.init();
     metrics.init();
@@ -199,7 +199,7 @@ const SerialActivity = struct {
 
     fn init(self: *SerialActivity) void {
         self.boot_magic_index = 0;
-        serial.log("now echoing input on uart1 ...");
+        serial.log("now echoing input on uart1 ...", .{});
     }
 
     fn update(self: *SerialActivity) void {
@@ -217,18 +217,16 @@ const SerialActivity = struct {
             // we skip over the .text.boot bytes, verifying that they
             // are unchanged.
             const new_kernel_len = serial.in.readIntLittle(u32) catch unreachable;
-            serial.log("New kernel image detected, {Bi:2}", new_kernel_len);
+            serial.log("New kernel image detected, {Bi:2}", .{new_kernel_len});
             const text_boot = @intToPtr([*]allowzero const u8, 0)[0..@ptrToInt(&__end_init)];
             for (text_boot) |text_boot_byte, byte_index| {
                 const new_byte = serial.readByte();
                 if (new_byte != text_boot_byte) {
-                    debug.panic(
-                        @errorReturnTrace(),
-                        "new_kernel[{}] expected: 0x{x} actual: 0x{x}",
+                    debug.panic(@errorReturnTrace(), "new_kernel[{}] expected: 0x{x} actual: 0x{x}", .{
                         byte_index,
                         text_boot_byte,
                         new_byte,
-                    );
+                    });
                 }
             }
             const start_addr = @ptrToInt(shortExceptionHandlerAt0x1000);
@@ -262,14 +260,10 @@ const SerialActivity = struct {
                         @memset(dest_ptr + copy_len, 0, pad_len);
                     },
                     std.elf.PT_GNU_STACK => {}, // ignore
-                    else => debug.panic(
-                        @errorReturnTrace(),
-                        "unexpected ELF Program Header load type: {}",
-                        this_ph.p_type,
-                    ),
+                    else => debug.panic(@errorReturnTrace(), "unexpected ELF Program Header load type: {}", .{this_ph.p_type}),
                 }
             }
-            serial.log("Loading new image...");
+            serial.log("Loading new image...", .{});
             asm volatile (
                 \\mov sp,#0x08000000
                 \\bl bootloader_main

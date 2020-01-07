@@ -30,10 +30,10 @@ const source_files = [_][]const u8{
 
 var already_panicking: bool = false;
 
-pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: ...) noreturn {
+pub fn panic(stack_trace: ?*builtin.StackTrace, comptime fmt: []const u8, args: var) noreturn {
     @setCold(true);
     if (already_panicking) {
-        serial.log("\npanicked during kernel panic");
+        serial.log("\npanicked during kernel panic", .{});
         wfe_hang();
     }
     already_panicking = true;
@@ -140,22 +140,22 @@ const kernel_panic_allocator = &kernel_panic_allocator_state.allocator;
 
 pub fn dumpStackTrace(stack_trace: *const builtin.StackTrace) void {
     const dwarf_info = getSelfDebugInfo() catch |err| {
-        serial.log("Unable to dump stack trace: Unable to open debug info: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: Unable to open debug info: {}", .{@errorName(err)});
         return;
     };
     writeStackTrace(stack_trace, dwarf_info) catch |err| {
-        serial.log("Unable to dump stack trace: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: {}", .{@errorName(err)});
         return;
     };
 }
 
 pub fn dumpCurrentStackTrace(start_addr: ?usize) void {
     const dwarf_info = getSelfDebugInfo() catch |err| {
-        serial.log("Unable to dump stack trace: Unable to open debug info: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: Unable to open debug info: {}", .{@errorName(err)});
         return;
     };
     writeCurrentStackTrace(dwarf_info, start_addr) catch |err| {
-        serial.log("Unable to dump stack trace: {}", @errorName(err));
+        serial.log("Unable to dump stack trace: {}", .{@errorName(err)});
         return;
     };
 }
@@ -189,7 +189,7 @@ fn printLineFromFile(out_stream: var, line_info: std.debug.LineInfo) anyerror!vo
             return;
         }
     }
-    try out_stream.print("(source file {} not added in std/debug.zig)\n", line_info.file_name);
+    try out_stream.print("(source file {} not added in std/debug.zig)\n", .{line_info.file_name});
 }
 
 fn writeCurrentStackTrace(dwarf_info: *std.debug.DwarfInfo, start_addr: ?usize) !void {

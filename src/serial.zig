@@ -106,7 +106,7 @@ pub fn init() void {
     mmio.write(AUX_MU_CNTL_REG, 3);
 }
 
-pub fn log(comptime format: []const u8, args: ...) void {
+pub fn log(comptime format: []const u8, args: var) void {
     fmt.format({}, NoError, logBytes, format ++ "\n", args) catch |e| switch (e) {};
 }
 
