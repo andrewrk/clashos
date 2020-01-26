@@ -8,7 +8,7 @@ pub fn build(b: *Builder) !void {
     const want_pty = b.option(bool, "pty", "Create a separate TTY path") orelse false;
     const want_nodisplay = b.option(bool, "nodisplay", "No display for qemu") orelse false;
 
-    const arch = builtin.Arch{ .aarch64 = builtin.Arch.Arm64.v8 };
+    const arch = builtin.Arch{ .aarch64 = .v8a };
     const environ = builtin.Abi.eabihf;
 
     // First we build just the bootloader executable, and then we build the actual kernel

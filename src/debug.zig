@@ -198,7 +198,7 @@ fn writeCurrentStackTrace(dwarf_info: *std.debug.DwarfInfo, start_addr: ?usize) 
         try dwarf_info.printSourceAtAddress(
             serial_out_stream,
             return_address,
-            true,
+            .escape_codes,
             printLineFromFile,
         );
     }
@@ -223,7 +223,7 @@ fn writeStackTrace(stack_trace: *const builtin.StackTrace, dwarf_info: *std.debu
         try dwarf_info.printSourceAtAddress(
             serial_out_stream,
             return_address,
-            true,
+            .escape_codes,
             printLineFromFile,
         );
     }

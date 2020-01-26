@@ -247,7 +247,7 @@ const SerialActivity = struct {
                 phdr_i += 1;
                 phdr_addr += ehdr.e_phentsize;
             }) {
-                const this_ph = @ptrCast(*const std.elf.Elf64_Phdr, phdr_addr);
+                const this_ph = @ptrCast(*const std.elf.Elf64_Phdr, @alignCast(@alignOf(std.elf.Elf64_Phdr), phdr_addr));
                 switch (this_ph.p_type) {
                     std.elf.PT_LOAD => {
                         const src_ptr = bootloader_code_ptr + this_ph.p_offset;
